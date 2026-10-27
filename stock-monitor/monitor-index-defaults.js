@@ -134,7 +134,7 @@ function render(cfg,data){
  sortTable('ETF');sortTable('Stock');sortTable('Fund');
  const latestPriceTime=successful.sort().at(-1)||allActive.map(x=>prices.get(x.ticker)?.price_retrieved_at).filter(Boolean).sort().at(-1),hiddenCount=allActive.length-active.length;
  $('reference-time').textContent=sg(data.last_check_completed_at||data.generated_at||latestPriceTime);$('tracked').textContent=active.length+' shown'+($('tracked').dataset.hideTotal==='true'?'':' · '+allActive.length+' total instruments');
- clearInterval(interval);interval=setInterval(()=>refresh(false),Math.max(5,Math.min(10,cfg.refreshIntervalMinutes||10))*60000);
+ clearInterval(interval);interval=setInterval(()=>refresh(false),60*1000);
  return active.map(x=>prices.get(x.ticker)||{});
 }
 async function load(){const [cfg,data,dividendData]=await Promise.all([get('../data/stock-tickers.json'),get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/market-data.json'),get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/dividend-data.json').catch(()=>null)]);if(dividendData&&Array.isArray(dividendData.instruments)){const byTicker=new Map(dividendData.instruments.map(x=>[x.ticker,x]));for(const row of (data.instruments||[])){const dividend=byTicker.get(row.ticker);if(dividend)Object.assign(row,dividend);}}await StockMonitorDisplay.initialise(cfg,hiddenTickers,rerender);return render(cfg,data);}
