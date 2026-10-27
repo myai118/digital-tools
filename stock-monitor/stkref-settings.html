@@ -7,7 +7,7 @@
 <meta name="referrer" content="no-referrer">
 <title>STKREF Price Checker Settings</title>
 <style>
-:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#17324a;background:#f2f6fa}*{box-sizing:border-box}body{margin:0;padding:24px}.panel{max-width:680px;margin:7vh auto;background:#fff;border:1px solid #d7e1eb;border-radius:16px;padding:28px;box-shadow:0 10px 30px #17324a12}h1{font-size:26px;margin:0 0 8px}.intro{color:#52677b;line-height:1.55;margin:0 0 22px}.state{padding:14px 16px;border-radius:10px;background:#eff6ff;margin:0 0 18px;font-weight:650}.switch-row{display:flex;align-items:center;gap:12px;padding:16px 0;border-top:1px solid #e3ebf2;border-bottom:1px solid #e3ebf2}.switch-row input{width:22px;height:22px;accent-color:#1475b8}.switch-row label{font-weight:650}.help{color:#52677b;font-size:14px;line-height:1.55}.token{display:block;width:100%;margin:8px 0 14px;padding:11px 12px;border:1px solid #b9c8d6;border-radius:8px;font:inherit}.actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}.actions button{border:0;border-radius:8px;padding:11px 16px;font:inherit;font-weight:650;cursor:pointer;background:#126ca5;color:white}.actions button.secondary{background:#e7eef5;color:#17324a}.actions button:disabled{opacity:.5;cursor:wait}#status{min-height:24px;margin:8px 0;color:#263f56}#status.error{color:#a12929}code{background:#edf2f7;padding:2px 5px;border-radius:4px}a{color:#075c9c}.fineprint{font-size:13px;color:#607386;line-height:1.5;margin-top:20px}
+:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#17324a;background:#f2f6fa}*{box-sizing:border-box}body{margin:0;padding:24px}.panel{max-width:760px;margin:7vh auto;background:#fff;border:1px solid #d7e1eb;border-radius:16px;padding:28px;box-shadow:0 10px 30px #17324a12}h1{font-size:26px;margin:0 0 8px}h2{font-size:18px;margin:22px 0 10px}.settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.setting{display:grid;gap:6px;padding:12px;border:1px solid #e3ebf2;border-radius:9px;font-weight:650}.setting input[type=number],.setting select{width:100%;padding:8px;border:1px solid #b9c8d6;border-radius:7px;font:inherit}.toggle{display:flex;align-items:center}.toggle input,.categories input{width:18px;height:18px;accent-color:#126ca5}.categories{grid-column:1/-1;display:flex;gap:18px;flex-wrap:wrap;border:1px solid #e3ebf2;border-radius:9px}.categories legend{font-weight:650}.categories label{display:flex;align-items:center;gap:7px}.setting:has(:disabled),.categories:has(:disabled){opacity:.75}.intro{color:#52677b;line-height:1.55;margin:0 0 22px}.state{padding:14px 16px;border-radius:10px;background:#eff6ff;margin:0 0 18px;font-weight:650}.switch-row{display:flex;align-items:center;gap:12px;padding:16px 0;border-top:1px solid #e3ebf2;border-bottom:1px solid #e3ebf2}.switch-row input{width:22px;height:22px;accent-color:#1475b8}.switch-row label{font-weight:650}.help{color:#52677b;font-size:14px;line-height:1.55}.token{display:block;width:100%;margin:8px 0 14px;padding:11px 12px;border:1px solid #b9c8d6;border-radius:8px;font:inherit}.actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}.actions button{border:0;border-radius:8px;padding:11px 16px;font:inherit;font-weight:650;cursor:pointer;background:#126ca5;color:white}.actions button.secondary{background:#e7eef5;color:#17324a}.actions button:disabled{opacity:.5;cursor:wait}#status{min-height:24px;margin:8px 0;color:#263f56}#status.error{color:#a12929}code{background:#edf2f7;padding:2px 5px;border-radius:4px}a{color:#075c9c}.fineprint{font-size:13px;color:#607386;line-height:1.5;margin-top:20px}
 </style>
 </head>
 <body>
@@ -15,11 +15,22 @@
 <h1>STKREF price checker settings</h1>
 <p class="intro">Control whether the scheduled price checker includes instruments classified as Funds. This setting is stored in <code>sgkjeajk/stkref</code>.</p>
 <p class="state" id="currentState" role="status">Loading current setting…</p>
-<div class="switch-row">
-<input id="fundEnabled" type="checkbox" disabled>
-<label for="fundEnabled">Include Funds in price checks</label>
+<h2>Price checker controls</h2>
+<div class="settings-grid">
+<label class="setting toggle"><input id="checkerEnabled" type="checkbox" disabled> Enable scheduled price checker</label>
+<label class="setting" for="checkerInterval">Checker interval
+<select id="checkerInterval" disabled><option value="5">5 minutes</option><option value="6">6 minutes</option><option value="8">8 minutes</option><option value="9">9 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></label>
+<label class="setting" for="checkerCycles">Cycles per job
+<input id="checkerCycles" type="number" min="1" step="1" value="1" disabled></label>
+<label class="setting" for="maxActiveCheckers">Maximum active checker jobs
+<input id="maxActiveCheckers" type="number" min="1" max="10" step="1" value="5" disabled></label>
+<fieldset class="categories"><legend>Price check categories</legend>
+<label><input id="categoryETF" type="checkbox" disabled> ETFs</label>
+<label><input id="categoryStock" type="checkbox" disabled> Stocks</label>
+<label><input id="categoryFund" type="checkbox" disabled> Funds</label>
+</fieldset>
 </div>
-<p class="help">Checked = Fund prices are refreshed. Unchecked = the price checker skips all Funds. This does not disable the separate dividend data refresh.</p>
+<p class="help">The active-job limit controls the automatic queue top-up. When the active price-check run count falls below this limit, the workflow can start another checker. The cycle and interval settings control repeated checks inside a run. Dividend refresh runs separately.</p>
 <label class="help" for="token">GitHub fine-grained personal access token</label>
 <input class="token" id="token" type="password" autocomplete="off" spellcheck="false" placeholder="Token with Contents read/write and Actions write for sgkjeajk/stkref">
 <p class="help">Create the fine-grained token while signed in to GitHub as <code>sgkjeajk</code>. Set the resource owner to <code>sgkjeajk</code>, then choose <strong>Only select repositories</strong> and select <code>stkref</code>. Grant <code>Contents: Read and write</code> to save the Funds setting and <code>Actions: Read and write</code> to start refresh jobs. Do not create this token under <code>myai118</code>. This page uses the token only for GitHub requests; it does not save it and clears it after a successful action or when you leave the page. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a fine-grained token</a>.</p>
@@ -32,6 +43,6 @@
 <p id="status" aria-live="polite">Loading the current value from GitHub…</p>
 <p class="fineprint">Saving updates <code>data/stock-tickers.json</code> in STKREF and increments its configuration revision. Use the buttons above to start a price check now or retrieve prices and refresh all-time highs. Runs are recorded in <a href="https://github.com/sgkjeajk/stkref/actions/workflows/task.yml" target="_blank" rel="noopener noreferrer">STKREF Actions</a>. Never paste your token into a message or share it with anyone.</p>
 </main>
-<script src="stkref-settings.js?v=20261027-2"></script>
+<script src="stkref-settings.js?v=20261027-3"></script>
 </body>
 </html>
