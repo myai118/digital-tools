@@ -3,7 +3,7 @@ const OWNER='sgkjeajk',REPO='stkref',BRANCH='main',FILE='data/stock-tickers.json
 const API='https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+FILE;
 const DISPATCH='https://api.github.com/repos/'+OWNER+'/'+REPO+'/actions/workflows/task.yml/dispatches';
 const INTERVALS=[5,6,8,9,10,15,30];
-const DEFAULT_CHECKER={enabled:true,intervalMinutes:15,cycles:1,maxActiveCheckers:5,categories:{ETF:true,Stock:true,Fund:true}};
+const DEFAULT_CHECKER={enabled:true,intervalMinutes:15,cycles:10,maxActiveCheckers:5,categories:{ETF:true,Stock:true,Fund:true}};
 const $=id=>document.getElementById(id);
 let loadedConfig=null,loadedSha=null,busy=false;
 function setStatus(text,error=false){const el=$('status');el.textContent=text;el.classList.toggle('error',error);}
