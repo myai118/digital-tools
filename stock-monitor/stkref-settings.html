@@ -22,7 +22,7 @@
 <p class="help">Checked = Fund prices are refreshed. Unchecked = the price checker skips all Funds. This does not disable the separate dividend data refresh.</p>
 <label class="help" for="token">GitHub fine-grained personal access token</label>
 <input class="token" id="token" type="password" autocomplete="off" spellcheck="false" placeholder="Token with Contents read/write and Actions write for sgkjeajk/stkref">
-<p class="help">The token is used only by this page to contact GitHub. It is not saved in browser storage and is cleared after a successful save or when you leave the page. Limit it to the <code>stkref</code> repository. Contents read/write saves the Funds setting; Actions write starts refresh jobs. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a fine-grained token</a>.</p>
+<p class="help">Create the fine-grained token while signed in to GitHub as <code>sgkjeajk</code>. Set the resource owner to <code>sgkjeajk</code>, then choose <strong>Only select repositories</strong> and select <code>stkref</code>. Grant <code>Contents: Read and write</code> to save the Funds setting and <code>Actions: Read and write</code> to start refresh jobs. Do not create this token under <code>myai118</code>. This page uses the token only for GitHub requests; it does not save it and clears it after a successful action or when you leave the page. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a fine-grained token</a>.</p>
 <div class="actions">
 <button id="reload" class="secondary" type="button">Reload setting</button>
 <button id="save" type="button" disabled>Save setting</button>
