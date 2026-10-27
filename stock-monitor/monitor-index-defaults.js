@@ -1,7 +1,8 @@
 'use strict';
 const $=id=>document.getElementById(id), valid=n=>typeof n==='number'&&Number.isFinite(n), fmt=n=>valid(n)?n.toFixed(2):'—', pct=n=>valid(n)?(n>=0?'+':'')+n.toFixed(2)+'%':'—', cls=n=>valid(n)&&n>0?'pos':valid(n)&&n<0?'neg':'';
 const sg=t=>t&&!Number.isNaN(Date.parse(t))?new Intl.DateTimeFormat('en-SG',{timeZone:'Asia/Singapore',dateStyle:'medium',timeStyle:'short'}).format(new Date(t))+' SGT':'Not yet retrieved';
-let interval, running=false, exportRows=[], latestCfg=null, latestData=null, hiddenTickers=loadHiddenTickers();
+const checkResultLabel=s=>({prices_refreshed:'Prices refreshed',skipped_price_checker_disabled:'Skipped: price checker disabled',skipped_no_price_checker_categories:'Skipped: no categories enabled',skipped_market_closed:'Skipped: markets closed',skipped_recent_prices_fresh:'Skipped: prices already fresh'}[s]||'Status not recorded');
+let interval, running=false, exportRows=[], latestCfg=null, latestData=null, latestSync=null, hiddenTickers=loadHiddenTickers();
 const IDS={ETF:['etfRows','etfSection'],Stock:['stockRows','stockSection'],Fund:['fundRows','fundSection']};
 const tableSort={ETF:{key:null,dir:'asc'},Stock:{key:null,dir:'asc'},Fund:{key:null,dir:'asc'}};
 function loadHiddenTickers(){return new Set();}
@@ -133,11 +134,11 @@ function render(cfg,data){
  for(const [type,id] of [['ETF','etf'],['Stock','stock'],['Fund','fund']]){const allCount=allActive.filter(x=>x.type===type).length,count=active.filter(x=>x.type===type).length,hidden=allCount-count,section=$(id+'Section');if(!section)continue;section.style.display=count?'':'none';$(id+'Count').textContent='Total '+(type==='ETF'?'ETFs':type==='Fund'?'Funds':'Stocks')+': '+count;}
  sortTable('ETF');sortTable('Stock');sortTable('Fund');
  const latestPriceTime=successful.sort().at(-1)||allActive.map(x=>prices.get(x.ticker)?.price_retrieved_at).filter(Boolean).sort().at(-1),hiddenCount=allActive.length-active.length;
- $('reference-time').textContent=sg(data.last_check_completed_at||data.generated_at||latestPriceTime);$('tracked').textContent=active.length+' shown'+($('tracked').dataset.hideTotal==='true'?'':' · '+allActive.length+' total instruments');
+ $('reference-time').textContent=sg(data.last_check_completed_at||data.generated_at||latestPriceTime);$('check-result').textContent=checkResultLabel(data.last_check_status);$('copy-time').textContent=sg(latestSync?.copied_at);$('tracked').textContent=active.length+' shown'+($('tracked').dataset.hideTotal==='true'?'':' · '+allActive.length+' total instruments');
  clearInterval(interval);interval=setInterval(()=>refresh(false),60*1000);
  return active.map(x=>prices.get(x.ticker)||{});
 }
-async function load(){const [cfg,data,dividendData]=await Promise.all([get('../data/stock-tickers.json'),get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/market-data.json'),get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/dividend-data.json').catch(()=>null)]);if(dividendData&&Array.isArray(dividendData.instruments)){const byTicker=new Map(dividendData.instruments.map(x=>[x.ticker,x]));for(const row of (data.instruments||[])){const dividend=byTicker.get(row.ticker);if(dividend)Object.assign(row,dividend);}}await StockMonitorDisplay.initialise(cfg,hiddenTickers,rerender);return render(cfg,data);}
+async function load(){const [cfg,data,dividendData,syncData]=await Promise.all([get('../data/stock-tickers.json'),get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/market-data.json'),get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/dividend-data.json').catch(()=>null),get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/refresh-sync-status.json').catch(()=>null)]);latestSync=syncData;if(dividendData&&Array.isArray(dividendData.instruments)){const byTicker=new Map(dividendData.instruments.map(x=>[x.ticker,x]));for(const row of (data.instruments||[])){const dividend=byTicker.get(row.ticker);if(dividend)Object.assign(row,dividend);}}await StockMonitorDisplay.initialise(cfg,hiddenTickers,rerender);return render(cfg,data);}
 async function refresh(){if(running)return;running=true;try{const rows=await load();const failed=rows.filter(x=>x.refresh_error).length;$('status').textContent=failed?failed+' ticker(s) have a source data warning; their saved values remain displayed. Price checker last completed: '+$('reference-time').textContent+'.':'Latest shared data loaded. Price checker last completed: '+$('reference-time').textContent+'.';}catch(e){$('status').textContent=e.message;}finally{running=false;}}
 for(const head of document.querySelectorAll('thead')){
  const type=head.closest('#etfSection')?'ETF':head.closest('#fundSection')?'Fund':'Stock',tr=document.createElement('tr');
