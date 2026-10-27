@@ -21,7 +21,7 @@
 <label class="setting" for="checkerInterval">Checker interval
 <select id="checkerInterval" disabled><option value="5">5 minutes</option><option value="6">6 minutes</option><option value="8">8 minutes</option><option value="9">9 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></label>
 <label class="setting" for="checkerCycles">Cycles per job
-<input id="checkerCycles" type="number" min="1" step="1" value="1" disabled></label>
+<input id="checkerCycles" type="number" min="1" step="1" value="10" disabled></label>
 <label class="setting" for="maxActiveCheckers">Maximum active checker jobs
 <input id="maxActiveCheckers" type="number" min="1" max="10" step="1" value="5" disabled></label>
 <fieldset class="categories"><legend>Price check categories</legend>
@@ -43,6 +43,6 @@
 <p id="status" aria-live="polite">Loading the current value from GitHub…</p>
 <p class="fineprint">Saving updates <code>data/stock-tickers.json</code> in STKREF and increments its configuration revision. Use the buttons above to start a price check now or retrieve prices and refresh all-time highs. Runs are recorded in <a href="https://github.com/sgkjeajk/stkref/actions/workflows/task.yml" target="_blank" rel="noopener noreferrer">STKREF Actions</a>. Never paste your token into a message or share it with anyone.</p>
 </main>
-<script src="stkref-settings.js?v=20261027-3"></script>
+<script src="stkref-settings.js?v=20261027-4"></script>
 </body>
 </html>
