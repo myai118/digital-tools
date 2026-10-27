@@ -2,12 +2,9 @@
 'use strict';
 const CATALOG={};
 const KEY='market-watch-admin.local.v1';
-const DEFAULT_PRICE_CHECKER={enabled:true,intervalMinutes:8,cycles:30,maxActiveCheckers:3,categories:{ETF:true,Stock:true,Fund:true}};
-const CHECKER_INTERVALS=[5,6,8,9,10];
-const CHECKER_TYPES=['ETF','Stock','Fund'];
 const SHOW_TYPES=['Fund'];
 const $=id=>document.getElementById(id);
-let items=[],busy=false,editing=null,savedItems=[],savedRefresh=15,savedChecker=structuredClone(DEFAULT_PRICE_CHECKER),revision=0,connected=false,marketRows=new Map();
+let items=[],busy=false,editing=null,savedItems=[],revision=0,connected=false,marketRows=new Map();
 let displaySortKey=null,displaySortDirection='asc';
 function setDisplaySort(key){
  displaySortDirection=displaySortKey===key&&displaySortDirection==='asc'?'desc':'asc';
@@ -35,42 +32,16 @@ const sort=list=>list.sort((a,b)=>({ETF:0,Stock:1}[a.type]??2)-({ETF:0,Stock:1}[
 const showValue=r=>r.type==='Fund'?r.show!==false:true;
 function tell(text,kind=''){ $('message').textContent=text;$('message').className=kind; }
 function tellNode(node,kind=''){ $('message').replaceChildren(node);$('message').className=kind; }
-function lock(value){busy=value;for(const id of ['addButton','ticker','addEnabled','importButton','exportButton','viewExcelButton','exportExcelButton','importFile','saveEdit','editTicker','editEnabled','editShow','cancelEdit','saveMain','cancelMain','refreshInterval','checkerEnabled','checkerInterval','checkerCycles','checkerMaxActive','checkerETF','checkerStock','checkerFund'])if($(id))$(id).disabled=value;render();}
+function lock(value){busy=value;for(const id of ['addButton','ticker','addEnabled','importButton','exportButton','viewExcelButton','exportExcelButton','importFile','saveEdit','editTicker','editEnabled','editShow','cancelEdit','saveMain','cancelMain'])if($(id))$(id).disabled=value;render();}
 async function api(path){if(path==='/api/config')return (await ECGitHub.file('data/stock-tickers.json')).data;if(path.startsWith('/api/lookup'))return ECGitHub.lookup(new URLSearchParams(path.split('?')[1]).get('ticker'));throw Error('Unknown operation.');}
 async function persist(){return ECGitHub.save({...backup(),revision},items);}
 function commit(next){items=sort(next);render();}
-function normaliseCheckerSettings(raw={}){
- const categories={...DEFAULT_PRICE_CHECKER.categories,...(raw.categories||{})};
- return {
-  enabled:typeof raw.enabled==='boolean'?raw.enabled:DEFAULT_PRICE_CHECKER.enabled,
-  intervalMinutes:CHECKER_INTERVALS.includes(Number(raw.intervalMinutes))?Number(raw.intervalMinutes):DEFAULT_PRICE_CHECKER.intervalMinutes,
-  cycles:Number.isInteger(Number(raw.cycles))?Math.max(1,Number(raw.cycles)):DEFAULT_PRICE_CHECKER.cycles,
-  maxActiveCheckers:Number.isInteger(Number(raw.maxActiveCheckers))?Math.max(1,Number(raw.maxActiveCheckers)):DEFAULT_PRICE_CHECKER.maxActiveCheckers,
-  categories:{ETF:Boolean(categories.ETF),Stock:Boolean(categories.Stock),Fund:Boolean(categories.Fund)}
- };
-}
-function readCheckerSettings(){
- return normaliseCheckerSettings({
-  enabled:$('checkerEnabled').checked,
-  intervalMinutes:Number($('checkerInterval').value),
-  cycles:Number($('checkerCycles').value),
-  maxActiveCheckers:Number($('checkerMaxActive').value),
-  categories:{ETF:$('checkerETF').checked,Stock:$('checkerStock').checked,Fund:$('checkerFund').checked}
- });
-}
-function writeCheckerSettings(settings){
- const s=normaliseCheckerSettings(settings);
- $('checkerEnabled').checked=s.enabled;$('checkerInterval').value=String(s.intervalMinutes);$('checkerCycles').value=String(s.cycles);$('checkerMaxActive').value=String(s.maxActiveCheckers);
- $('checkerETF').checked=s.categories.ETF;$('checkerStock').checked=s.categories.Stock;$('checkerFund').checked=s.categories.Fund;
-}
-function updateDirty(){const dirty=JSON.stringify(items)!==JSON.stringify(savedItems)||Number($('refreshInterval').value)!==savedRefresh||JSON.stringify(readCheckerSettings())!==JSON.stringify(savedChecker);$('dirtyNote').textContent=dirty?'Unsaved changes':'All changes saved';return dirty;}
-$('refreshInterval').onchange=updateDirty;
-for(const id of ['checkerEnabled','checkerInterval','checkerCycles','checkerMaxActive','checkerETF','checkerStock','checkerFund'])$(id).onchange=updateDirty;
-$('saveMain').onclick=async()=>{if(busy)return;lock(true);try{const cfg=await persist();revision=cfg.revision;savedItems=structuredClone(items);savedRefresh=cfg.refreshIntervalMinutes;savedChecker=normaliseCheckerSettings(cfg.priceChecker);writeCheckerSettings(savedChecker);updateDirty();tell('Saved to shared GitHub configuration. The Monitor recognises changes on its next refresh; new prices follow the queued updater.');}catch(e){tell(e.message,'error');}finally{lock(false);}};
-$('cancelMain').onclick=async()=>{if(!updateDirty())return;if(await confirmAction('Discard unsaved changes?','Restore the ticker list and checker settings from your last saved configuration?','Discard Changes')){items=structuredClone(savedItems);$('refreshInterval').value=savedRefresh;writeCheckerSettings(savedChecker);render();tell('Unsaved changes discarded.');}};
+function updateDirty(){const dirty=JSON.stringify(items)!==JSON.stringify(savedItems);$('dirtyNote').textContent=dirty?'Unsaved changes':'All changes saved';return dirty;}
+$('saveMain').onclick=async()=>{if(busy)return;lock(true);try{const cfg=await persist();revision=cfg.revision;savedItems=structuredClone(items);updateDirty();tell('Saved to shared GitHub configuration. The Monitor reads the latest shared data files when it reloads.');}catch(e){tell(e.message,'error');}finally{lock(false);}};
+$('cancelMain').onclick=async()=>{if(!updateDirty())return;if(await confirmAction('Discard unsaved changes?','Restore the ticker list from your last saved configuration?','Discard Changes')){items=structuredClone(savedItems);render();tell('Unsaved changes discarded.');}};
 window.addEventListener('beforeunload',e=>{if(updateDirty()){e.preventDefault();e.returnValue='';}});
-function validateConfig(data){if(!data||typeof data!=='object'||Array.isArray(data)||!Array.isArray(data.tickers))throw Error('Configuration must contain a tickers array.');if(data.version!==undefined&&data.version!==1)throw Error('Unsupported configuration version.');if(data.refreshIntervalMinutes!==undefined&&![5,10,15,30,60].includes(data.refreshIntervalMinutes))throw Error('Refresh interval must be 5, 10, 15, 30 or 60 minutes.');const checker=normaliseCheckerSettings(data.priceChecker);const seen=new Set();return {priceChecker:checker,tickers:data.tickers.map((r,i)=>{if(!r||typeof r!=='object'||typeof r.enabled!=='boolean')throw Error('Entry '+(i+1)+' must contain ticker and a true/false enabled status.');const ticker=normalize(r.ticker);if(seen.has(ticker))throw Error('Duplicate ticker in file: '+ticker);seen.add(ticker);return {ticker,enabled:r.enabled,show:r.type==='Fund'?r.show!==false:true};})};}
-function backup(){return {version:1,exportedAt:new Date().toISOString(),refreshIntervalMinutes:Number($('refreshInterval').value),priceChecker:readCheckerSettings(),tickers:sort([...items]).map(r=>({ticker:r.ticker,enabled:r.enabled,show:r.type==='Fund'?r.show!==false:true}))};}
+function validateConfig(data){if(!data||typeof data!=='object'||Array.isArray(data)||!Array.isArray(data.tickers))throw Error('Configuration must contain a tickers array.');if(data.version!==undefined&&data.version!==1)throw Error('Unsupported configuration version.');const seen=new Set();return {tickers:data.tickers.map((r,i)=>{if(!r||typeof r!=='object'||typeof r.enabled!=='boolean')throw Error('Entry '+(i+1)+' must contain ticker and a true/false enabled status.');const ticker=normalize(r.ticker);if(seen.has(ticker))throw Error('Duplicate ticker in file: '+ticker);seen.add(ticker);return {ticker,enabled:r.enabled,show:r.type==='Fund'?r.show!==false:true};})};}
+function backup(){return {version:1,exportedAt:new Date().toISOString(),tickers:sort([...items]).map(r=>({ticker:r.ticker,enabled:r.enabled,show:r.type==='Fund'?r.show!==false:true}))};}
 function download(name,content,type){
  const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');
  a.href=url;a.download=name;a.rel='noopener';a.target='_blank';document.body.append(a);a.click();a.remove();
@@ -135,11 +106,6 @@ $('exportExcelButton').onclick=excelExport;
 $('closeExcelPreview').onclick=()=>$('excelDialog').close();
 $('exportExcelFromPreview').onclick=excelExport;
 $('importButton').onclick=()=>{if(!busy)$('importFile').click();};
-$('importFile').onchange=async()=>{const file=$('importFile').files[0];$('importFile').value='';if(!file||busy)return;try{const config=JSON.parse(await file.text());const imported=validateConfig(config),entries=imported.tickers;if(!await confirmAction('Import Configuration?','Replace the current '+items.length+' tickers with '+entries.length+' tickers from '+file.name+'? Export first if you need a backup.','Replace Draft List'))return;lock(true);tell('Restoring tickers and checking metadata…');const result=new Array(entries.length);let cursor=0,pending=0;await Promise.all(Array.from({length:Math.min(4,entries.length)},async()=>{while(cursor<entries.length){const i=cursor++,entry=entries[i];try{result[i]={...entry,...await lookup(entry.ticker),show:entry.show!==false};}catch(e){pending++;result[i]={...entry,name:'Metadata pending',market:'Unverified',type:null,source:'Lookup unavailable; ticker and status preserved'};}}}));if(config.refreshIntervalMinutes!==undefined)$('refreshInterval').value=config.refreshIntervalMinutes;writeCheckerSettings(imported.priceChecker);commit(result);tell('Imported '+result.length+' tickers and price checker settings.'+(pending?' '+pending+' could not be verified; their ticker and status are preserved. Edit and Save to retry lookup.':''),pending?'warn':'');}catch(e){tell('Import stopped. Your list is unchanged. '+(e instanceof SyntaxError?'The file is not valid JSON.':e.message),'error');}finally{lock(false);}};
-async function initialise(){lock(true);try{const cfg=await api('/api/config');revision=cfg.revision||0;items=sort(cfg.instruments.map(x=>({...x,market:x.region,source:x.metadata_source,show:x.type==='Fund'?x.show!==false:true})));$('refreshInterval').value=cfg.refreshIntervalMinutes||15;writeCheckerSettings(cfg.priceChecker);savedItems=structuredClone(items);savedRefresh=Number($('refreshInterval').value);savedChecker=readCheckerSettings();connected=true;tell('Shared GitHub configuration loaded. Connect GitHub below before saving.');}catch(e){tell('Shared GitHub configuration could not be loaded. Check your connection or GitHub API limit, then reload.','error');}finally{lock(false);if(!connected){for(const id of ['addButton','saveMain','importButton'])$(id).disabled=true;}render();}}
-function checkerTime(value){if(!value)return 'Last completed: —';const d=new Date(value);return 'Last completed: '+(Number.isNaN(d.getTime())?'—':new Intl.DateTimeFormat('en-SG',{timeZone:'Asia/Singapore',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}).format(d)+' SGT');}
-function setCheckerStatus(kind,status,time,detail){const name=kind==='price'?'Price':'Dividend';const state=$('admin'+name+'CheckStatus'),stamp=$('admin'+name+'CheckTime');if(state)state.textContent=status+(detail?' — '+detail:'');if(stamp)stamp.textContent=checkerTime(time);}
-async function refreshCheckerStatus(){try{const price=await ECGitHub.getCheckerSnapshot('market-data.json');setCheckerStatus('price',price.last_check_status==='prices_refreshed'?'Completed':price.last_check_status?.startsWith('skipped')?'Skipped':'Last recorded',price.last_check_completed_at||price.generated_at,price.last_check_status||'');}catch(e){setCheckerStatus('price','Unavailable',null,e.message);}try{const dividend=await ECGitHub.getCheckerSnapshot('dividend-data.json');const failed=(dividend.instruments||[]).filter(x=>x.dividend_error).length;setCheckerStatus('dividend',failed?'Completed with errors':'Completed',dividend.generated_at,failed?failed+' ticker(s) unavailable':'');}catch(e){setCheckerStatus('dividend','Unavailable',null,e.message);}}
-ECGitHub.mount($('githubConnection'));initialise();refreshCheckerStatus();
-$('adminRefreshPrices').onclick=async()=>{const b=$('adminRefreshPrices');b.disabled=true;setCheckerStatus('price','Running');setCheckerStatus('dividend','Waiting');try{const d=await ECGitHub.refreshPrices(message=>{ $('adminRefreshStatus').textContent=message;if(message.includes('Waiting for dividend')){setCheckerStatus('price','Completed');setCheckerStatus('dividend','Running');}});const failed=(d.instruments||[]).filter(x=>x.refresh_error).length;const athFailed=(d.instruments||[]).filter(x=>x.ath_error).length;$('adminRefreshStatus').textContent='Price and dividend refresh finished. '+failed+' price and '+athFailed+' ATH retrievals unavailable. Reload Monitor to view.';}catch(e){$('adminRefreshStatus').textContent=e.message;}finally{await refreshCheckerStatus();b.disabled=false;}};
-$('adminStartChecker30').onclick=async()=>{const b=$('adminStartChecker30');b.disabled=true;try{const result=await ECGitHub.startChecker(text=>$('adminRefreshStatus').textContent=text);$('adminRefreshStatus').innerHTML='Price checker launched. Request ID: '+result.requestId+'. <a href="'+result.workflowUrl+'" target="_blank" rel="noopener noreferrer">Open GitHub workflow</a>.';}catch(e){$('adminRefreshStatus').textContent=e.message;}finally{b.disabled=false;}};
+$('importFile').onchange=async()=>{const file=$('importFile').files[0];$('importFile').value='';if(!file||busy)return;try{const config=JSON.parse(await file.text());const imported=validateConfig(config),entries=imported.tickers;if(!await confirmAction('Import Configuration?','Replace the current '+items.length+' tickers with '+entries.length+' tickers from '+file.name+'? Export first if you need a backup.','Replace Draft List'))return;lock(true);tell('Restoring ticker list…');const result=new Array(entries.length);let cursor=0,pending=0;await Promise.all(Array.from({length:Math.min(4,entries.length)},async()=>{while(cursor<entries.length){const i=cursor++,entry=entries[i];try{result[i]={...entry,...await lookup(entry.ticker),show:entry.show!==false};}catch(e){pending++;result[i]={...entry,name:'Metadata pending',market:'Unverified',type:null,source:'Lookup unavailable; ticker and status preserved'};}}}));commit(result);tell('Imported '+result.length+' tickers.'+(pending?' '+pending+' could not be verified; their ticker and status are preserved. Edit and Save to retry lookup.':''),pending?'warn':'');}catch(e){tell('Import stopped. Your list is unchanged. '+(e instanceof SyntaxError?'The file is not valid JSON.':e.message),'error');}finally{lock(false);}};
+async function initialise(){lock(true);try{const cfg=await api('/api/config');revision=cfg.revision||0;items=sort(cfg.instruments.map(x=>({...x,market:x.region,source:x.metadata_source,show:x.type==='Fund'?x.show!==false:true})));savedItems=structuredClone(items);connected=true;tell('Shared GitHub configuration loaded. Connect GitHub below before saving.');}catch(e){tell('Shared GitHub configuration could not be loaded. Check your connection or GitHub API limit, then reload.','error');}finally{lock(false);if(!connected){for(const id of ['addButton','saveMain','importButton'])$(id).disabled=true;}render();}}
+ECGitHub.mount($('githubConnection'));initialise();
