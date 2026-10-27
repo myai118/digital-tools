@@ -134,7 +134,7 @@ function render(cfg,data){
  for(const [type,id] of [['ETF','etf'],['Stock','stock'],['Fund','fund']]){const allCount=allActive.filter(x=>x.type===type).length,count=active.filter(x=>x.type===type).length,hidden=allCount-count,section=$(id+'Section');if(!section)continue;section.style.display=count?'':'none';$(id+'Count').textContent='Total '+(type==='ETF'?'ETFs':type==='Fund'?'Funds':'Stocks')+': '+count;}
  sortTable('ETF');sortTable('Stock');sortTable('Fund');
  const latestPriceTime=successful.sort().at(-1)||allActive.map(x=>prices.get(x.ticker)?.price_retrieved_at).filter(Boolean).sort().at(-1),hiddenCount=allActive.length-active.length;
- $('reference-time').textContent=sg(data.last_check_completed_at||data.generated_at||latestPriceTime);$('check-result').textContent=checkResultLabel(data.last_check_status);$('copy-time').textContent=sg(latestSync?.copied_at);$('tracked').textContent=active.length+' shown'+($('tracked').dataset.hideTotal==='true'?'':' · '+allActive.length+' total instruments');
+ $('reference-time').textContent=sg(data.last_check_completed_at||data.generated_at||latestPriceTime);$('check-result').textContent=checkResultLabel(data.last_check_status);$('copy-time').textContent=latestSync?sg(latestSync.copied_at):'Copy timestamp not recorded yet';$('tracked').textContent=active.length+' shown'+($('tracked').dataset.hideTotal==='true'?'':' · '+allActive.length+' total instruments');
  clearInterval(interval);interval=setInterval(()=>refresh(false),60*1000);
  return active.map(x=>prices.get(x.ticker)||{});
 }
