@@ -1,6 +1,7 @@
 'use strict';
 const OWNER='sgkjeajk',REPO='stkref',BRANCH='main',FILE='data/stock-tickers.json';
 const API='https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+FILE;
+const DISPATCH='https://api.github.com/repos/'+OWNER+'/'+REPO+'/actions/workflows/task.yml/dispatches';
 const $=id=>document.getElementById(id);
 let loadedConfig=null,loadedSha=null,busy=false;
 function setStatus(text,error=false){const el=$('status');el.textContent=text;el.classList.toggle('error',error);}
@@ -16,6 +17,29 @@ async function githubFile(token=''){
  if(!response.ok)throw new Error(body.message||'GitHub could not read the STKREF settings.');
  if(body.encoding!=='base64'||!body.content||!body.sha)throw new Error('GitHub returned an unexpected settings file.');
  return {sha:body.sha,config:JSON.parse(decodeBase64Utf8(body.content))};
+}
+async function startJob(refreshAth){
+ if(busy)return;
+ const token=$('token').value.trim();
+ if(!token){setStatus('Enter a fine-grained GitHub token with Actions write access to sgkjeajk/stkref. Contents read/write is also needed to save the Funds setting.',true);$('token').focus();return;}
+ busy=true;
+ for(const id of ['reload','save','startPrice','startAth','fundEnabled'])$(id).disabled=true;
+ setStatus(refreshAth?'Starting price and ATH refresh…':'Starting the price checker job…');
+ try{
+  const response=await fetch(DISPATCH,{method:'POST',headers:{Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28',Authorization:'Bearer '+token},body:JSON.stringify({ref:BRANCH,inputs:{refresh_ath:String(refreshAth)}})});
+  const body=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(body.message||'GitHub could not start the STKREF workflow. Check that the token has Actions write permission.');
+  $('token').value='';
+  setStatus((refreshAth?'Price and ATH refresh':'Price checker job')+' started. Track its progress in STKREF Actions.');
+ }catch(error){setStatus(error.message,true);}
+ finally{
+  busy=false;
+  $('reload').disabled=false;
+  $('fundEnabled').disabled=!loadedConfig;
+  $('save').disabled=!loadedConfig;
+  $('startPrice').disabled=false;
+  $('startAth').disabled=false;
+ }
 }
 async function load(){
  if(busy)return;busy=true;$('reload').disabled=true;$('save').disabled=true;$('fundEnabled').disabled=true;setStatus('Loading current setting from STKREF…');
@@ -50,6 +74,8 @@ async function save(){
 }
 $('reload').addEventListener('click',load);
 $('save').addEventListener('click',save);
+$('startPrice').addEventListener('click',()=>startJob(false));
+$('startAth').addEventListener('click',()=>startJob(true));
 $('fundEnabled').addEventListener('change',()=>{if(loadedConfig)$('currentState').textContent='New Fund price refresh setting: '+($('fundEnabled').checked?'ON':'OFF')+'.';});
 window.addEventListener('pagehide',()=>{$('token').value='';});
 load();
