@@ -2,80 +2,80 @@
 const OWNER='sgkjeajk',REPO='stkref',BRANCH='main',FILE='data/stock-tickers.json';
 const API='https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+FILE;
 const DISPATCH='https://api.github.com/repos/'+OWNER+'/'+REPO+'/actions/workflows/task.yml/dispatches';
+const INTERVALS=[5,6,8,9,10,15,30];
+const DEFAULT_CHECKER={enabled:true,intervalMinutes:15,cycles:1,maxActiveCheckers:5,categories:{ETF:true,Stock:true,Fund:true}};
 const $=id=>document.getElementById(id);
 let loadedConfig=null,loadedSha=null,busy=false;
 function setStatus(text,error=false){const el=$('status');el.textContent=text;el.classList.toggle('error',error);}
 function decodeBase64Utf8(value){const binary=atob(value.replace(/\s/g,'')),bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));return new TextDecoder().decode(bytes);}
 function encodeBase64Utf8(value){const bytes=new TextEncoder().encode(value);let binary='';for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(binary);}
-function fundEnabled(config){return config?.priceChecker?.categories?.Fund===true;}
-function showCurrent(){if(!loadedConfig)return;$('fundEnabled').checked=fundEnabled(loadedConfig);$('fundEnabled').disabled=false;$('save').disabled=false;$('currentState').textContent='Fund price refresh is '+(fundEnabled(loadedConfig)?'ON':'OFF')+'.';}
+function normalise(config){
+ const raw=config?.priceChecker||{},categories={...DEFAULT_CHECKER.categories,...(raw.categories||{})};
+ return {enabled:typeof raw.enabled==='boolean'?raw.enabled:DEFAULT_CHECKER.enabled,
+  intervalMinutes:INTERVALS.includes(Number(raw.intervalMinutes))?Number(raw.intervalMinutes):DEFAULT_CHECKER.intervalMinutes,
+  cycles:Number.isInteger(Number(raw.cycles))?Math.max(1,Number(raw.cycles)):DEFAULT_CHECKER.cycles,
+  maxActiveCheckers:Number.isInteger(Number(raw.maxActiveCheckers))?Math.max(1,Math.min(10,Number(raw.maxActiveCheckers))):DEFAULT_CHECKER.maxActiveCheckers,
+  categories:{ETF:Boolean(categories.ETF),Stock:Boolean(categories.Stock),Fund:Boolean(categories.Fund)}};
+}
+function readSettings(){return {enabled:$('checkerEnabled').checked,intervalMinutes:Number($('checkerInterval').value),cycles:Number($('checkerCycles').value),maxActiveCheckers:Number($('maxActiveCheckers').value),categories:{ETF:$('categoryETF').checked,Stock:$('categoryStock').checked,Fund:$('categoryFund').checked}};}
+function writeSettings(s){
+ $('checkerEnabled').checked=s.enabled;$('checkerInterval').value=String(s.intervalMinutes);
+ $('checkerCycles').value=String(s.cycles);$('maxActiveCheckers').value=String(s.maxActiveCheckers);
+ $('categoryETF').checked=s.categories.ETF;$('categoryStock').checked=s.categories.Stock;$('categoryFund').checked=s.categories.Fund;
+ for(const id of ['checkerEnabled','checkerInterval','checkerCycles','maxActiveCheckers','categoryETF','categoryStock','categoryFund'])$(id).disabled=false;
+ $('save').disabled=false;$('startPrice').disabled=false;$('startAth').disabled=false;
+ $('currentState').textContent='Price checker '+(s.enabled?'ON':'OFF')+' · '+s.intervalMinutes+' min interval · '+s.cycles+' cycle(s) · maximum '+s.maxActiveCheckers+' active jobs.';
+}
+function lock(value){busy=value;for(const id of ['reload','save','startPrice','startAth','checkerEnabled','checkerInterval','checkerCycles','maxActiveCheckers','categoryETF','categoryStock','categoryFund'])$(id).disabled=value||!loadedConfig;}
 async function githubFile(token=''){
- const headers={Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};
- if(token)headers.Authorization='Bearer '+token;
- const response=await fetch(API+'?ref='+BRANCH,{headers,cache:'no-store'});
- const body=await response.json().catch(()=>({}));
+ const headers={Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};if(token)headers.Authorization='Bearer '+token;
+ const response=await fetch(API+'?ref='+BRANCH,{headers,cache:'no-store'}),body=await response.json().catch(()=>({}));
  if(!response.ok)throw new Error(body.message||'GitHub could not read the STKREF settings.');
  if(body.encoding!=='base64'||!body.content||!body.sha)throw new Error('GitHub returned an unexpected settings file.');
  return {sha:body.sha,config:JSON.parse(decodeBase64Utf8(body.content))};
 }
-async function startJob(refreshAth){
- if(busy)return;
- const token=$('token').value.trim();
- if(!token){setStatus('Enter a fine-grained GitHub token with Actions write access to sgkjeajk/stkref. Contents read/write is also needed to save the Funds setting.',true);$('token').focus();return;}
- busy=true;
- for(const id of ['reload','save','startPrice','startAth','fundEnabled'])$(id).disabled=true;
- setStatus(refreshAth?'Starting price and ATH refresh…':'Starting the price checker job…');
- try{
-  const response=await fetch(DISPATCH,{method:'POST',headers:{Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28',Authorization:'Bearer '+token},body:JSON.stringify({ref:BRANCH,inputs:{refresh_ath:String(refreshAth)}})});
-  const body=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(body.message||'GitHub could not start the STKREF workflow. Check that the token has Actions write permission.');
-  $('token').value='';
-  setStatus((refreshAth?'Price and ATH refresh':'Price checker job')+' started. Track its progress in STKREF Actions.');
- }catch(error){setStatus(error.message,true);}
- finally{
-  busy=false;
-  $('reload').disabled=false;
-  $('fundEnabled').disabled=!loadedConfig;
-  $('save').disabled=!loadedConfig;
-  $('startPrice').disabled=false;
-  $('startAth').disabled=false;
- }
-}
 async function load(){
- if(busy)return;busy=true;$('reload').disabled=true;$('save').disabled=true;$('fundEnabled').disabled=true;setStatus('Loading current setting from STKREF…');
- try{const file=await githubFile();loadedConfig=file.config;loadedSha=file.sha;showCurrent();setStatus('Loaded the current setting from sgkjeajk/stkref.');}
- catch(error){loadedConfig=null;loadedSha=null;$('currentState').textContent='Could not load the setting.';setStatus(error.message,true);}
- finally{busy=false;$('reload').disabled=false;}
+ if(busy)return;lock(true);setStatus('Loading current settings from STKREF…');
+ try{const file=await githubFile();loadedConfig=file.config;loadedSha=file.sha;writeSettings(normalise(loadedConfig));setStatus('Loaded current price checker settings from sgkjeajk/stkref.');}
+ catch(error){loadedConfig=null;loadedSha=null;$('currentState').textContent='Could not load settings.';setStatus(error.message,true);}
+ finally{busy=false;$('reload').disabled=false;if(!loadedConfig)for(const id of ['save','startPrice','startAth','checkerEnabled','checkerInterval','checkerCycles','maxActiveCheckers','categoryETF','categoryStock','categoryFund'])$(id).disabled=true;}
 }
 async function save(){
  if(busy||!loadedConfig||!loadedSha)return;
  const token=$('token').value.trim();
- if(!token){setStatus('Enter a fine-grained GitHub token with Contents read/write access to sgkjeajk/stkref.',true);$('token').focus();return;}
- busy=true;$('reload').disabled=true;$('save').disabled=true;$('fundEnabled').disabled=true;setStatus('Checking the latest STKREF setting…');
+ if(!token){setStatus('Enter a fine-grained token created under sgkjeajk with Contents read/write access to stkref.',true);$('token').focus();return;}
+ const settings=readSettings();
+ if(!INTERVALS.includes(settings.intervalMinutes)||!Number.isInteger(settings.cycles)||settings.cycles<1||!Number.isInteger(settings.maxActiveCheckers)||settings.maxActiveCheckers<1||settings.maxActiveCheckers>10){setStatus('Choose a supported interval, at least 1 cycle, and a maximum of 1–10 active jobs.',true);return;}
+ lock(true);setStatus('Checking the latest STKREF settings…');
  try{
   const latest=await githubFile(token);
-  if(latest.sha!==loadedSha){loadedConfig=latest.config;loadedSha=latest.sha;showCurrent();throw new Error('The STKREF file changed since it was loaded. The latest setting is shown; review it and save again.');}
-  const enabled=$('fundEnabled').checked;
-  if(fundEnabled(latest.config)===enabled){setStatus('No change needed; Fund price refresh is already '+(enabled?'ON':'OFF')+'.');return;}
-  const next=latest.config;
-  next.priceChecker=next.priceChecker||{};
-  next.priceChecker.categories=next.priceChecker.categories||{};
-  next.priceChecker.categories.Fund=enabled;
-  next.revision=(Number.isInteger(next.revision)?next.revision:0)+1;
-  next.saved_at=new Date().toISOString();
-  const response=await fetch(API,{method:'PUT',headers:{Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28',Authorization:'Bearer '+token},body:JSON.stringify({message:'Set Fund price checking '+(enabled?'on':'off'),content:encodeBase64Utf8(JSON.stringify(next,null,2)+'\n'),sha:latest.sha,branch:BRANCH})});
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(result.message||'GitHub could not save the STKREF setting.');
-  loadedConfig=next;loadedSha=result.content?.sha||loadedSha;showCurrent();
-  setStatus('Saved. The STKREF workflow will apply this setting on its next run.');
-  $('token').value='';
+  if(latest.sha!==loadedSha){loadedConfig=latest.config;loadedSha=latest.sha;writeSettings(normalise(latest.config));throw new Error('The STKREF settings changed since they were loaded. The latest values are shown; review them and save again.');}
+  const previous=normalise(latest.config);
+  if(JSON.stringify(previous)===JSON.stringify(settings)){setStatus('No changes to save.');return;}
+  const next=latest.config;next.priceChecker={...(next.priceChecker||{}),...settings};next.revision=(Number.isInteger(next.revision)?next.revision:0)+1;next.saved_at=new Date().toISOString();
+  const response=await fetch(API,{method:'PUT',headers:{Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28',Authorization:'Bearer '+token},body:JSON.stringify({message:'Update STKREF price checker settings',content:encodeBase64Utf8(JSON.stringify(next,null,2)+'\n'),sha:latest.sha,branch:BRANCH})});
+  const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.message||'GitHub could not save the STKREF settings.');
+  loadedConfig=next;loadedSha=result.content?.sha||loadedSha;writeSettings(normalise(next));$('token').value='';
+  setStatus('Saved. The scheduled checker uses these values on its next run.');
  }catch(error){setStatus(error.message,true);}
- finally{busy=false;$('reload').disabled=false;$('fundEnabled').disabled=false;$('save').disabled=!loadedConfig;}
+ finally{busy=false;lock(false);$('token').value=$('token').value;}
 }
-$('reload').addEventListener('click',load);
-$('save').addEventListener('click',save);
-$('startPrice').addEventListener('click',()=>startJob(false));
-$('startAth').addEventListener('click',()=>startJob(true));
-$('fundEnabled').addEventListener('change',()=>{if(loadedConfig)$('currentState').textContent='New Fund price refresh setting: '+($('fundEnabled').checked?'ON':'OFF')+'.';});
+async function startJob(refreshAth){
+ if(busy||!loadedConfig)return;
+ const token=$('token').value.trim();
+ if(!token){setStatus('Enter a fine-grained token created under sgkjeajk with Actions write access to stkref.',true);$('token').focus();return;}
+ if(JSON.stringify(readSettings())!==JSON.stringify(normalise(loadedConfig))){setStatus('Save your settings before starting a job.',true);return;}
+ lock(true);setStatus(refreshAth?'Starting price and ATH refresh…':'Starting the price checker job…');
+ try{
+  const cycles=refreshAth?1:normalise(loadedConfig).cycles;
+  const response=await fetch(DISPATCH,{method:'POST',headers:{Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28',Authorization:'Bearer '+token},body:JSON.stringify({ref:BRANCH,inputs:{refresh_ath:refreshAth,checker_cycles:String(cycles),force_price_check:!refreshAth}})});
+  const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.message||'GitHub could not start the STKREF workflow. Confirm the token has Actions write permission.');
+  $('token').value='';setStatus((refreshAth?'Price and ATH refresh':'Price checker job')+' started. Track progress in STKREF Actions.');
+ }catch(error){setStatus(error.message,true);}
+ finally{lock(false);}
+}
+$('reload').addEventListener('click',load);$('save').addEventListener('click',save);
+$('startPrice').addEventListener('click',()=>startJob(false));$('startAth').addEventListener('click',()=>startJob(true));
+for(const id of ['checkerEnabled','checkerInterval','checkerCycles','maxActiveCheckers','categoryETF','categoryStock','categoryFund'])$(id).addEventListener('change',()=>{if(loadedConfig)$('currentState').textContent='Unsaved price checker changes';});
 window.addEventListener('pagehide',()=>{$('token').value='';});
 load();
