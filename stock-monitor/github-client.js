@@ -20,7 +20,7 @@ window.ECGitHub=(()=>{
   const seen=new Set();
   const instruments=items.map(x=>{const ticker=normalise(x.ticker);if(seen.has(ticker))throw Error('Duplicate ticker: '+ticker);seen.add(ticker);if(typeof x.enabled!=='boolean'||!['ETF','Stock','Fund'].includes(x.type)||!x.name||!x.market)throw Error('Verify every ticker before saving.');return {ticker,enabled:x.enabled,show:x.type==='Fund'?x.show!==false:true,name:x.name,region:x.market,type:x.type,metadata_source:x.source||x.metadata_source};}).sort((a,b)=>({ETF:0,Stock:1,Fund:2}[a.type]??3)-({ETF:0,Stock:1,Fund:2}[b.type]??3)||a.ticker.localeCompare(b.ticker));
   const latest=await file('data/stock-tickers.json');if((latest.data.revision||0)!==input.revision)throw Error('Another save changed the configuration. Reload before saving your draft.');
-  const cfg={version:1,revision:input.revision+1,saved_at:new Date().toISOString(),instruments};
+  const cfg={version:1,revision:input.revision+1,refreshIntervalMinutes:latest.data.refreshIntervalMinutes||10,saved_at:new Date().toISOString(),instruments};
   const result=await request('/contents/data/stock-tickers.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'Update Stock ETF Monitor ticker configuration',branch,sha:latest.sha,content:encode(JSON.stringify(cfg,null,2)+'\n')})});
   return {...cfg,commit_sha:result.commit?.sha};
  }
