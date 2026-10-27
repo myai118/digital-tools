@@ -21,14 +21,16 @@
 </div>
 <p class="help">Checked = Fund prices are refreshed. Unchecked = the price checker skips all Funds. This does not disable the separate dividend data refresh.</p>
 <label class="help" for="token">GitHub fine-grained personal access token</label>
-<input class="token" id="token" type="password" autocomplete="off" spellcheck="false" placeholder="Token with Contents: Read and write for sgkjeajk/stkref">
-<p class="help">The token is used only by this page to contact GitHub. It is not saved in browser storage and is cleared after a successful save or when you leave the page. Limit it to the <code>stkref</code> repository with Contents read/write permission. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a fine-grained token</a>.</p>
+<input class="token" id="token" type="password" autocomplete="off" spellcheck="false" placeholder="Token with Contents read/write and Actions write for sgkjeajk/stkref">
+<p class="help">The token is used only by this page to contact GitHub. It is not saved in browser storage and is cleared after a successful save or when you leave the page. Limit it to the <code>stkref</code> repository. Contents read/write saves the Funds setting; Actions write starts refresh jobs. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a fine-grained token</a>.</p>
 <div class="actions">
 <button id="reload" class="secondary" type="button">Reload setting</button>
 <button id="save" type="button" disabled>Save setting</button>
+<button id="startPrice" type="button">Start price checker job</button>
+<button id="startAth" type="button" class="secondary">Retrieve prices &amp; ATH</button>
 </div>
 <p id="status" aria-live="polite">Loading the current value from GitHub…</p>
-<p class="fineprint">Saving updates <code>data/stock-tickers.json</code> in STKREF and increments its configuration revision. The scheduled workflow applies the change on its next run. Never paste your token into a message or share it with anyone.</p>
+<p class="fineprint">Saving updates <code>data/stock-tickers.json</code> in STKREF and increments its configuration revision. Use the buttons above to start a price check now or retrieve prices and refresh all-time highs. Runs are recorded in <a href="https://github.com/sgkjeajk/stkref/actions/workflows/task.yml" target="_blank" rel="noopener noreferrer">STKREF Actions</a>. Never paste your token into a message or share it with anyone.</p>
 </main>
 <script src="stkref-settings.js?v=20261027-1"></script>
 </body>
