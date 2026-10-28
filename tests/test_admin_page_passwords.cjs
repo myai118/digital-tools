@@ -8,7 +8,7 @@ function client(options={}){
  return {api:ctx.window.ECGitHub,calls,data,connect:async()=>{controls.input.value='test-token';await controls['.connect'].onclick();}};
 }
 test('password saving needs GitHub connection and preserves ticker defaults and other pages',async()=>{
- const h=client();await assert.rejects(h.api.savePagePassword('index.html','new','index'),/Connect GitHub/);assert.equal(h.calls.length,0);
+ const h=client();await assert.rejects(h.api.savePagePassword('index.html','new','index'),/myai118\/digital-tools.*Contents: Read and write/);assert.equal(h.calls.length,0);
  await h.connect();h.data.pages['index.html'].visibleTickers.push('MSFT');const result=await h.api.savePagePassword('index.html','新 password','index');assert.equal(result.commit_sha,'saved');
  const put=h.calls.find(x=>x.opts.method==='PUT'),body=JSON.parse(put.opts.body),saved=JSON.parse(Buffer.from(body.content,'base64').toString('utf8'));
  assert.equal(body.sha,'latest-sha');assert.equal(saved.pages['index.html'].settingsPassword,'新 password');assert.deepEqual(saved.pages['index.html'].visibleTickers,['SPY','MSFT']);assert.equal(typeof saved.pages['index.html'].savedAt,'string');assert.deepEqual(saved.pages['tools/kwc.html'],defaults().pages['tools/kwc.html']);assert.equal(put.opts.headers.Authorization,'Bearer test-token');
@@ -20,7 +20,7 @@ test('conflicts and unconfirmed GitHub responses cannot report a successful pass
  for(const options of [{conflict:true},{unconfirmed:true}]){const h=client(options);await h.connect();await assert.rejects(h.api.savePagePassword('index.html','new','index'),/Conflict|did not confirm/);}
 });
 test('default ticker saving uses the existing Admin GitHub connection and preserves page passwords',async()=>{
- const h=client();await assert.rejects(h.api.savePageDefaults('index.html',['MSFT','SPY'],['SPY']),/Connect GitHub/);assert.equal(h.calls.length,0);
+ const h=client();await assert.rejects(h.api.savePageDefaults('index.html',['MSFT','SPY'],['SPY']),/myai118\/digital-tools.*Contents: Read and write/);assert.equal(h.calls.length,0);
  await h.connect();const result=await h.api.savePageDefaults('index.html',['MSFT','SPY'],['SPY']);assert.equal(result.commit_sha,'saved');
  const put=h.calls.find(x=>x.opts.method==='PUT'),body=JSON.parse(put.opts.body),saved=JSON.parse(Buffer.from(body.content,'base64').toString('utf8'));
  assert.deepEqual(saved.pages['index.html'].visibleTickers,['MSFT','SPY']);assert.equal(saved.pages['index.html'].settingsPassword,'index');assert.equal(typeof saved.pages['index.html'].savedAt,'string');assert.deepEqual(saved.pages['tools/kwc.html'],defaults().pages['tools/kwc.html']);assert.equal(body.sha,'latest-sha');assert.equal(put.opts.headers.Authorization,'Bearer test-token');
