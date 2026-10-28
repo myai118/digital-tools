@@ -13,16 +13,16 @@ function app(){
 }
 test('separate defaults for job batch, threshold, and cycles',()=>{
  const a=app(),s=a.run('normalise({})');
- assert.equal(s.topUpJobs,10);assert.equal(s.refillThreshold,5);assert.equal(s.cycles,10);
+ assert.equal(s.topUpJobs,10);assert.equal(s.refillThreshold,5);assert.equal(s.cycles,1);
 });
 test('settings fields round-trip and explain inclusive batch rule',()=>{
  const a=app();a.run('writeSettings(normalise({priceChecker:{cycles:7,intervalMinutes:6,refillThreshold:5,topUpJobs:10}}))');
- const s=a.run('readSettings()');assert.equal(s.cycles,7);assert.equal(s.refillThreshold,5);assert.equal(s.topUpJobs,10);
+ const s=a.run('readSettings()');assert.equal(s.cycles,1);assert.equal(s.refillThreshold,5);assert.equal(s.topUpJobs,10);
  assert.match(a.els.get('currentState').textContent,/add 10 jobs when 5 or fewer remain/);
 });
 test('custom batch is not capped to ten and threshold can be zero',()=>{
  const a=app(),s=a.run('normalise({priceChecker:{refillThreshold:0,topUpJobs:12,cycles:3}})');
- assert.equal(s.topUpJobs,12);assert.equal(s.refillThreshold,0);assert.equal(s.cycles,3);
+ assert.equal(s.topUpJobs,12);assert.equal(s.refillThreshold,0);assert.equal(s.cycles,1);
 });
 test('busy state locks both new job controls',()=>{
  const a=app();a.run('loadedConfig={};lock(true)');
@@ -37,7 +37,7 @@ test('save preserves unrelated configuration and writes independent queue fields
  a.context.fetch=async(url,options)=>{if(options.method==='PUT'){body=JSON.parse(options.body);return {ok:true,json:async()=>({content:{sha:'new'}})};}return {ok:true,json:async()=>({sha:'old',encoding:'base64',content:Buffer.from(JSON.stringify(config)).toString('base64')})};};
  await a.run('save()');
  const saved=JSON.parse(Buffer.from(body.content,'base64').toString());
- assert.equal(saved.priceChecker.topUpJobs,12);assert.equal(saved.priceChecker.refillThreshold,5);assert.equal(saved.priceChecker.cycles,7);assert.equal(saved.priceChecker.maxActiveCheckers,17);
+ assert.equal(saved.priceChecker.topUpJobs,12);assert.equal(saved.priceChecker.refillThreshold,5);assert.equal(saved.priceChecker.cycles,1);assert.equal(saved.priceChecker.maxActiveCheckers,17);
  assert.equal(saved.revision,44);assert.equal(saved.instruments[0].ticker,'AAPL');assert.equal(a.els.get('token').value,'');
 });
 test('invalid batch is rejected without a write',async()=>{
@@ -45,6 +45,6 @@ test('invalid batch is rejected without a write',async()=>{
  await a.run('save()');assert.match(a.els.get('status').textContent,/at least 1 job/);
 });
 test('settings labels distinguish jobs from cycles',()=>{
- assert.match(html,/Cycles per job/);assert.match(html,/New jobs to add each time/);assert.match(html,/5 remaining becomes 15; 0 remaining becomes 10/);
+ assert.match(html,/Each queued program performs one price check/);assert.ok(!html.includes('id="checkerCycles"'));assert.match(html,/New jobs to add each time/);assert.match(html,/5 remaining becomes 15; 0 remaining becomes 10/);
  assert.ok(!html.includes('Maximum active checker jobs'));
 });
