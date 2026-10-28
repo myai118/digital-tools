@@ -27,7 +27,7 @@
    instruments=(tickerConfig.data.instruments||[]).filter(x=>x.enabled&&typeof x.ticker==='string').map(x=>({ticker:x.ticker,name:x.name||x.ticker,region:x.region||'',type:x.type||''})).sort((a,b)=>a.ticker.localeCompare(b.ticker));
    const keep=page.value;page.replaceChildren();for(const key of Object.keys(pages).sort()){const option=document.createElement('option');option.value=key;option.textContent=key;page.append(option);}page.value=Object.hasOwn(pages,keep)?keep:(page.options[0]?.value||'');
    activePage=page.value;render();save.disabled=!page.options.length;
-   say('Choose the tickers visitors should see on each monitor page. Connect GitHub under Owner access before saving.');
+   say('Choose the tickers visitors should see on each monitor page. Connect the myai118/digital-tools token under Owner access before saving (Contents: Read and write).');
   }catch(error){pages={};page.replaceChildren();list.replaceChildren();count.textContent='';save.disabled=true;say('Could not load monitor defaults. '+error.message);}
   finally{busy=false;reload.disabled=false;page.disabled=!page.options.length;search.disabled=selectFiltered.disabled=clearFiltered.disabled=!page.options.length;render();}
  }
