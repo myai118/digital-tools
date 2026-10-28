@@ -22,15 +22,17 @@
 <select id="checkerInterval" disabled><option value="5">5 minutes</option><option value="6">6 minutes</option><option value="8">8 minutes</option><option value="9">9 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></label>
 <label class="setting" for="checkerCycles">Cycles per job
 <input id="checkerCycles" type="number" min="1" step="1" value="10" disabled></label>
-<label class="setting" for="maxActiveCheckers">Maximum active checker jobs
-<input id="maxActiveCheckers" type="number" min="1" max="10" step="1" value="5" disabled></label>
+<label class="setting" for="refillThreshold">Top up when this many jobs or fewer remain
+<input id="refillThreshold" type="number" min="0" step="1" value="5" disabled></label>
+<label class="setting" for="topUpJobs">New jobs to add each time
+<input id="topUpJobs" type="number" min="1" step="1" value="10" disabled></label>
 <fieldset class="categories"><legend>Price check categories</legend>
 <label><input id="categoryETF" type="checkbox" disabled> ETFs</label>
 <label><input id="categoryStock" type="checkbox" disabled> Stocks</label>
 <label><input id="categoryFund" type="checkbox" disabled> Funds</label>
 </fieldset>
 </div>
-<p class="help">The active-job limit controls the automatic queue top-up. When the active price-check run count falls below this limit, the workflow can start another checker. The cycle and interval settings control repeated checks inside a run. Dividend refresh runs separately.</p>
+<p class="help">When 5 or fewer jobs remain, add 10 new jobs: 5 remaining becomes 15; 0 remaining becomes 10. Change the two job settings above to adjust this rule. Cycles per job controls how many checks each job performs, and the interval sets the wait between checks.</p>
 <label class="help" for="token">Account sgkjeajk · Repository stkref — personal access token</label>
 <input class="token" id="token" type="password" autocomplete="off" spellcheck="false" placeholder="sgkjeajk/stkref token value — not your GitHub password">
 <p class="help"><strong>Use the token value, not your GitHub login password. This is different from the myai118/digital-tools admin token and the EVERYDAYCOMPASS_TOKEN copy secret.</strong> Create the fine-grained token while signed in to GitHub as <code>sgkjeajk</code>. Set the resource owner to <code>sgkjeajk</code>, then choose <strong>Only select repositories</strong> and select <code>stkref</code>. Grant <code>Contents: Read and write</code> to save the Funds setting and <code>Actions: Read and write</code> to start refresh jobs. Do not create this token under <code>myai118</code>. This page uses the token only for GitHub requests; it does not save it and clears it after a successful action or when you leave the page. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a fine-grained token</a>.</p>
@@ -43,6 +45,6 @@
 <p id="status" aria-live="polite">Loading the current value from GitHub…</p>
 <p class="fineprint">Saving updates <code>data/stock-tickers.json</code> in STKREF and increments its configuration revision. Use the buttons above to start a price check now or retrieve prices and refresh all-time highs. Runs are recorded in <a href="https://github.com/sgkjeajk/stkref/actions/workflows/task.yml" target="_blank" rel="noopener noreferrer">STKREF Actions</a>. Never paste your token into a message or share it with anyone.</p>
 </main>
-<script src="stkref-settings.js?v=20261027-4"></script>
+<script src="stkref-settings.js?v=20261029-batch-topup"></script>
 </body>
 </html>
