@@ -105,9 +105,9 @@ jobs:
           for attempt in range(3):
               try:
                   with urllib.request.urlopen(base+'/login',timeout=20) as r:
-                      assert r.status==200 and 'KLZ sign in' in r.read().decode()
+                      assert r.status==200 and 'Client accounts sign in' in r.read().decode()
                   with urllib.request.urlopen(base+'/tools-klz.html',timeout=20) as r:
-                      assert '/login' in r.url and 'KLZ sign in' in r.read().decode()
+                      assert '/login' in r.url and 'Client accounts sign in' in r.read().decode()
                   try:
                       urllib.request.urlopen(base+'/api/snapshot',timeout=20)
                       raise AssertionError('Unauthenticated data request was accepted')
