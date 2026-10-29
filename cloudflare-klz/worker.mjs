@@ -4,7 +4,7 @@ function secure(response) {
   const result = new Response(response.body, response);
   result.headers.set('Cache-Control','private, no-store');
   result.headers.set('X-Content-Type-Options','nosniff');
-  result.headers.set('Referrer-Policy','no-referrer');
+  result.headers.set('Referrer-Policy','same-origin');
   result.headers.set('X-Frame-Options','DENY');
   result.headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
   return result;
