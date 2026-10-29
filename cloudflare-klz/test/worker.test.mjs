@@ -44,7 +44,7 @@ test('protected pages/assets redirect, data denies access, and cross-origin logi
  for(const path of ['/myweb-klz.html','/tools-klz.html','/scripts/xlsx-writer.js']){const r=await h.fetch(new Request('https://example.com'+path),env);assert.equal(r.status,303);assert.ok(r.headers.get('location').startsWith('/login'));}
  assert.equal((await h.fetch(new Request('https://example.com/api/snapshot'),env)).status,401);
  assert.equal((await h.fetch(new Request('https://example.com/login',{method:'POST',headers:{Origin:'https://evil.example'},body:'email=x'}),env)).status,403);
- const login=await h.fetch(new Request('https://example.com/login'),env);assert.equal(login.status,200);assert.ok((await login.text()).includes('KLZ sign in'));
+ const login=await h.fetch(new Request('https://example.com/login'),env);assert.equal(login.status,200);assert.equal(login.headers.get('referrer-policy'),'same-origin');assert.ok((await login.text()).includes('KLZ sign in'));
 });
 test('valid session opens assets; secure cookie and next URL cannot redirect externally',async()=>{
  const {a,env:secrets}=service();const env={...secrets,ACCOUNTS:{idFromName:()=>1,get:()=>({fetch:(url,opts)=>a.fetch(new Request(url,opts))})},ASSETS:{fetch:()=>new Response('protected asset')}};await setup(a);
