@@ -80,12 +80,17 @@ jobs:
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           python - <<'PY'
-          import os,json,urllib.request
+          import os,json,urllib.request,urllib.error
           base='https://api.cloudflare.com/client/v4/accounts/'+os.environ['CF_ACCOUNT']
           headers={'Authorization':'Bearer '+os.environ['CF_TOKEN'],'Content-Type':'application/json'}
           def call(path,method='GET',body=None):
               req=urllib.request.Request(base+path,headers=headers,method=method,data=None if body is None else json.dumps(body).encode())
-              with urllib.request.urlopen(req,timeout=30) as r:d=json.load(r)
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as r:d=json.load(r)
+              except urllib.error.HTTPError as e:
+                  try:details=json.loads(e.read()).get('errors',[])
+                  except Exception:details=[{'message':'Cloudflare rejected the hostname change'}]
+                  raise RuntimeError('Cloudflare HTTP '+str(e.code)+': '+json.dumps(details))
               if not d.get('success'):raise RuntimeError('Cloudflare operation failed: '+json.dumps(d.get('errors',[])))
               return d['result']
           def namespace(script):
