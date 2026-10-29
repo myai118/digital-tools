@@ -20,7 +20,9 @@
 <label class="setting toggle"><input id="checkerEnabled" type="checkbox" disabled> Enable scheduled price checker</label>
 <label class="setting" for="checkerInterval">Checker interval
 <select id="checkerInterval" disabled><option value="5">5 minutes</option><option value="6">6 minutes</option><option value="8">8 minutes</option><option value="9">9 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></label>
-<p class="help">Each queued program performs one price check and copies its result, then exits. Only one program runs at a time; the others wait. The next check waits for the saved interval.</p>
+<label class="setting" for="checkerCycles">Price checks per program
+<input id="checkerCycles" type="number" min="1" step="1" value="10" disabled></label>
+<p class="help">Each program repeats the saved number of price checks. After every check it copies both the price and dividend files to EverydayCompass, then waits for the saved interval before the next check. Only one program runs at a time; the others wait.</p>
 <label class="setting" for="refillThreshold">Top up when this many price checker programs or fewer remain
 <input id="refillThreshold" type="number" min="0" step="1" value="5" disabled></label>
 <label class="setting" for="topUpJobs">New price checker programs to add each time
@@ -31,7 +33,7 @@
 <label><input id="categoryFund" type="checkbox" disabled> Funds</label>
 </fieldset>
 </div>
-<p class="help">When 5 or fewer price checker programs remain, add 10 new price checker programs: 5 remaining becomes 15; 0 remaining becomes 10. Change the two program settings above to adjust this rule. The checker interval controls spacing between successive programs; programs do not repeat ten checks.</p>
+<p class="help">When 5 or fewer price checker programs remain, add 10 new price checker programs: 5 remaining becomes 15; 0 remaining becomes 10. Change the two program settings above to adjust this rule. The checker interval controls the wait between checks, including when the next queued program starts. If copying fails, the program reports failure and the next queued program retries without the normal interval.</p>
 <label class="help" for="token">Account sgkjeajk · Repository stkref — personal access token</label>
 <input class="token" id="token" type="password" autocomplete="off" spellcheck="false" placeholder="sgkjeajk/stkref token value — not your GitHub password">
 <p class="help"><strong>Use the token value, not your GitHub login password. This is different from the myai118/digital-tools admin token and the EVERYDAYCOMPASS_TOKEN copy secret.</strong> Create the fine-grained token while signed in to GitHub as <code>sgkjeajk</code>. Set the resource owner to <code>sgkjeajk</code>, then choose <strong>Only select repositories</strong> and select <code>stkref</code>. Grant <code>Contents: Read and write</code> to save the Funds setting and <code>Actions: Read and write</code> to start refresh programs. Do not create this token under <code>myai118</code>. This page uses the token only for GitHub requests; it does not save it and clears it after a successful action or when you leave the page. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a fine-grained token</a>.</p>
@@ -44,6 +46,6 @@
 <p id="status" aria-live="polite">Loading the current value from GitHub…</p>
 <p class="fineprint">Saving updates <code>data/stock-tickers.json</code> in STKREF and increments its configuration revision. Use the buttons above to start a price check now or retrieve prices and refresh all-time highs. Runs are recorded in <a href="https://github.com/sgkjeajk/stkref/actions/workflows/task.yml" target="_blank" rel="noopener noreferrer">STKREF Actions</a>. Never paste your token into a message or share it with anyone.</p>
 </main>
-<script src="stkref-settings.js?v=20261029-price-checker-programs"></script>
+<script src="stkref-settings.js?v=20261029-repeated-check-programs"></script>
 </body>
 </html>

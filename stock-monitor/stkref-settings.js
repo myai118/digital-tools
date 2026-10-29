@@ -3,7 +3,7 @@ const OWNER='sgkjeajk',REPO='stkref',BRANCH='main',FILE='data/stock-tickers.json
 const API='https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+FILE;
 const DISPATCH='https://api.github.com/repos/'+OWNER+'/'+REPO+'/actions/workflows/task.yml/dispatches';
 const INTERVALS=[5,6,8,9,10,15,30];
-const DEFAULT_CHECKER={enabled:true,intervalMinutes:15,cycles:1,refillThreshold:5,topUpJobs:10,categories:{ETF:true,Stock:true,Fund:true}};
+const DEFAULT_CHECKER={enabled:true,intervalMinutes:6,cycles:10,refillThreshold:5,topUpJobs:10,categories:{ETF:true,Stock:true,Fund:true}};
 const $=id=>document.getElementById(id);
 let loadedConfig=null,loadedSha=null,busy=false;
 function setStatus(text,error=false){const el=$('status');el.textContent=text;el.classList.toggle('error',error);}
@@ -13,21 +13,21 @@ function normalise(config){
  const raw=config?.priceChecker||{},categories={...DEFAULT_CHECKER.categories,...(raw.categories||{})};
  return {enabled:typeof raw.enabled==='boolean'?raw.enabled:DEFAULT_CHECKER.enabled,
   intervalMinutes:INTERVALS.includes(Number(raw.intervalMinutes))?Number(raw.intervalMinutes):DEFAULT_CHECKER.intervalMinutes,
-  cycles:1,
+  cycles:Number.isInteger(Number(raw.cycles))&&Number(raw.cycles)>0?Number(raw.cycles):DEFAULT_CHECKER.cycles,
   refillThreshold:Number.isInteger(Number(raw.refillThreshold))?Math.max(0,Number(raw.refillThreshold)):DEFAULT_CHECKER.refillThreshold,
   topUpJobs:Number.isInteger(Number(raw.topUpJobs))?Math.max(1,Number(raw.topUpJobs)):DEFAULT_CHECKER.topUpJobs,
   categories:{ETF:Boolean(categories.ETF),Stock:Boolean(categories.Stock),Fund:Boolean(categories.Fund)}};
 }
-function readSettings(){return {enabled:$('checkerEnabled').checked,intervalMinutes:Number($('checkerInterval').value),cycles:1,refillThreshold:Number($('refillThreshold').value),topUpJobs:Number($('topUpJobs').value),categories:{ETF:$('categoryETF').checked,Stock:$('categoryStock').checked,Fund:$('categoryFund').checked}};}
+function readSettings(){return {enabled:$('checkerEnabled').checked,intervalMinutes:Number($('checkerInterval').value),cycles:Number($('checkerCycles').value),refillThreshold:Number($('refillThreshold').value),topUpJobs:Number($('topUpJobs').value),categories:{ETF:$('categoryETF').checked,Stock:$('categoryStock').checked,Fund:$('categoryFund').checked}};}
 function writeSettings(s){
  $('checkerEnabled').checked=s.enabled;$('checkerInterval').value=String(s.intervalMinutes);
- $('refillThreshold').value=String(s.refillThreshold);$('topUpJobs').value=String(s.topUpJobs);
+ $('checkerCycles').value=String(s.cycles);$('refillThreshold').value=String(s.refillThreshold);$('topUpJobs').value=String(s.topUpJobs);
  $('categoryETF').checked=s.categories.ETF;$('categoryStock').checked=s.categories.Stock;$('categoryFund').checked=s.categories.Fund;
- for(const id of ['checkerEnabled','checkerInterval','refillThreshold','topUpJobs','categoryETF','categoryStock','categoryFund'])$(id).disabled=false;
+ for(const id of ['checkerEnabled','checkerInterval','checkerCycles','refillThreshold','topUpJobs','categoryETF','categoryStock','categoryFund'])$(id).disabled=false;
  $('save').disabled=false;$('startPrice').disabled=false;$('startAth').disabled=false;
- $('currentState').textContent='Price checker '+(s.enabled?'ON':'OFF')+' · '+s.intervalMinutes+' min interval · one check per program · add '+s.topUpJobs+' price checker programs when '+s.refillThreshold+' or fewer remain.';
+ $('currentState').textContent='Price checker '+(s.enabled?'ON':'OFF')+' · '+s.intervalMinutes+' min interval · '+s.cycles+' checks per program · add '+s.topUpJobs+' price checker programs when '+s.refillThreshold+' or fewer remain.';
 }
-function lock(value){busy=value;for(const id of ['reload','save','startPrice','startAth','checkerEnabled','checkerInterval','refillThreshold','topUpJobs','categoryETF','categoryStock','categoryFund'])$(id).disabled=value||!loadedConfig;}
+function lock(value){busy=value;for(const id of ['reload','save','startPrice','startAth','checkerEnabled','checkerInterval','checkerCycles','refillThreshold','topUpJobs','categoryETF','categoryStock','categoryFund'])$(id).disabled=value||!loadedConfig;}
 async function githubFile(token=''){
  const headers={Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};if(token)headers.Authorization='Bearer '+token;
  const response=await fetch(API+'?ref='+BRANCH,{headers,cache:'no-store'}),body=await response.json().catch(()=>({}));
@@ -39,14 +39,14 @@ async function load(){
  if(busy)return;lock(true);setStatus('Loading current settings from STKREF…');
  try{const file=await githubFile();loadedConfig=file.config;loadedSha=file.sha;writeSettings(normalise(loadedConfig));setStatus('Loaded current price checker settings from sgkjeajk/stkref.');}
  catch(error){loadedConfig=null;loadedSha=null;$('currentState').textContent='Could not load settings.';setStatus(error.message,true);}
- finally{busy=false;$('reload').disabled=false;if(!loadedConfig)for(const id of ['save','startPrice','startAth','checkerEnabled','checkerInterval','refillThreshold','topUpJobs','categoryETF','categoryStock','categoryFund'])$(id).disabled=true;}
+ finally{busy=false;$('reload').disabled=false;if(!loadedConfig)for(const id of ['save','startPrice','startAth','checkerEnabled','checkerInterval','checkerCycles','refillThreshold','topUpJobs','categoryETF','categoryStock','categoryFund'])$(id).disabled=true;}
 }
 async function save(){
  if(busy||!loadedConfig||!loadedSha)return;
  const token=$('token').value.trim();
  if(!token){setStatus('Enter a fine-grained token created under sgkjeajk with Contents read/write access to stkref.',true);$('token').focus();return;}
  const settings=readSettings();
- if(!INTERVALS.includes(settings.intervalMinutes)||!Number.isInteger(settings.cycles)||settings.cycles<1||!Number.isInteger(settings.refillThreshold)||settings.refillThreshold<0||!Number.isInteger(settings.topUpJobs)||settings.topUpJobs<1){setStatus('Choose a supported interval, a refill threshold of 0 or more, and at least 1 price checker program per top-up.',true);return;}
+ if(!INTERVALS.includes(settings.intervalMinutes)||!Number.isInteger(settings.cycles)||settings.cycles<1||!Number.isInteger(settings.refillThreshold)||settings.refillThreshold<0||!Number.isInteger(settings.topUpJobs)||settings.topUpJobs<1){setStatus('Choose a supported interval, at least 1 check per program, a refill threshold of 0 or more, and at least 1 price checker program per top-up.',true);return;}
  lock(true);setStatus('Checking the latest STKREF settings…');
  try{
   const latest=await githubFile(token);
@@ -68,7 +68,7 @@ async function startJob(refreshAth){
  if(JSON.stringify(readSettings())!==JSON.stringify(normalise(loadedConfig))){setStatus('Save your settings before starting a price checker program.',true);return;}
  lock(true);setStatus(refreshAth?'Starting price and ATH refresh…':'Starting the price checker program…');
  try{
-  const cycles=1;
+  const cycles=normalise(loadedConfig).cycles;
   const response=await fetch(DISPATCH,{method:'POST',headers:{Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28',Authorization:'Bearer '+token},body:JSON.stringify({ref:BRANCH,inputs:{refresh_ath:refreshAth,checker_cycles:String(cycles),force_price_check:!refreshAth}})});
   const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.message||'GitHub could not start the STKREF workflow. Confirm the token has Actions write permission.');
   $('token').value='';setStatus((refreshAth?'Price and ATH refresh':'Price checker program')+' started. Track progress in STKREF Actions.');
@@ -77,6 +77,6 @@ async function startJob(refreshAth){
 }
 $('reload').addEventListener('click',load);$('save').addEventListener('click',save);
 $('startPrice').addEventListener('click',()=>startJob(false));$('startAth').addEventListener('click',()=>startJob(true));
-for(const id of ['checkerEnabled','checkerInterval','refillThreshold','topUpJobs','categoryETF','categoryStock','categoryFund'])$(id).addEventListener('change',()=>{if(loadedConfig)$('currentState').textContent='Unsaved price checker changes';});
+for(const id of ['checkerEnabled','checkerInterval','checkerCycles','refillThreshold','topUpJobs','categoryETF','categoryStock','categoryFund'])$(id).addEventListener('change',()=>{if(loadedConfig)$('currentState').textContent='Unsaved price checker changes';});
 window.addEventListener('pagehide',()=>{$('token').value='';});
 load();
