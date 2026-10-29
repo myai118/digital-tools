@@ -81,6 +81,22 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           WRANGLER_SEND_METRICS: 'false'
         run: npx wrangler deploy
+      - name: Check setup secret name without reading its value
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request
+          url='https://api.cloudflare.com/client/v4/accounts/'+os.environ['CF_ACCOUNT']+'/workers/scripts/klz-monitor/settings'
+          req=urllib.request.Request(url,headers={'Authorization':'Bearer '+os.environ['CF_TOKEN']})
+          with urllib.request.urlopen(req,timeout=30) as r:data=json.load(r)
+          bindings=(data.get('result') or {}).get('bindings',[])
+          matches=[b for b in bindings if b.get('name')=='SETUP_KEY']
+          print('SETUP_KEY installed: '+str(bool(matches)))
+          if matches:print('SETUP_KEY binding type: '+str(matches[0].get('type')))
+          print('Similar binding names: '+', '.join(b.get('name','') for b in bindings if 'SETUP' in b.get('name','').upper()))
+          PY
       - name: Verify deployed login and protected data
         run: |
           python - <<'PY'
