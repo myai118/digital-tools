@@ -81,3 +81,5 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           WRANGLER_SEND_METRICS: 'false'
         run: npx wrangler deploy
+
+# Deploy individual accounts with private Durable Object storage.
