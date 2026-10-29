@@ -81,7 +81,7 @@ async function route(request,env,getSnapshot){
   return redirect('/login?next='+encodeURIComponent(nextPath(path)));
  }
  if(path==='/')return redirect('/myweb-klz.html');
- if(path==='/account')return html(page('Your account',`<h1>Your KLZ account</h1><p>${htmlEscape(user.email)}</p><a href="/myweb-klz.html">Back to KLZ</a>${user.admin?'<p><a href="/accounts">Manage accounts</a></p>':''}<form method="post" action="/logout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button>Sign out</button></form>`));
+ if(path==='/account')return html(page('Your account',`<h1>Your Client accounts profile</h1><p>${htmlEscape(user.email)}</p><a href="/myweb-klz.html">Back to homepage</a>${user.admin?'<p><a href="/accounts">Manage accounts</a></p>':''}<form method="post" action="/logout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button>Sign out</button></form>`));
  if(path==='/accounts'){
   if(!user.admin)return new Response('Administrator access required',{status:403});
   const {users=[]}=await(await call({op:'list',token})).json();return html(accountsPage(user,users));
