@@ -1,34 +1,17 @@
-# Private KLZ Cloudflare Worker
+# KLZ individual accounts
 
-Prepared from myai118/digital-tools: myweb/klz.html and stock-monitor/tools/kwc.html. The published monitor is named tools-klz.html and deliberately uses tools/klz.html defaults from the existing admin.
+Cloudflare Worker hosts /myweb-klz.html and /tools-klz.html with email/password login, eight-hour revocable sessions and administrator account management at /accounts. Central GitHub ticker settings and market JSON remain upstream. Browser data polling is every 15 minutes.
 
-## Build from this repository branch
+## Initial administrator
 
-Cloudflare Workers Git build settings:
-- Root directory: cloudflare-klz
-- Build command: npm install --no-audit --no-fund && KLZ_SOURCE_ROOT=.. npm run build
-- Deploy command: npx wrangler deploy
-- Worker name: klz-monitor
+In Cloudflare Workers & Pages > klz-monitor > Settings > Variables and Secrets, add a secret named SETUP_KEY containing a private random value of at least 24 characters. Deploy the secret change. Open /setup and enter that key, jjkwan118@gmail.com, and your chosen administrator password (at least 12 characters). The first account is created once only. Remove SETUP_KEY afterwards; it cannot reset or recreate an existing administrator. Keep the administrator password safely.
 
-For the standalone review copy, use npm install --no-audit --no-fund && npm run build; it includes a source snapshot and two images.
+At /accounts, add users (maximum 50 including administrator), disable/enable individual users, or reset passwords. Disabling or resetting an account invalidates all its existing sessions. Give credentials to users privately. Passwords use unique random salts and PBKDF2 hashes, never plaintext storage. Wrong login attempts are throttled. Cookies are Secure, HttpOnly, SameSite=Strict; mutations require same-origin and session CSRF tokens. No public signup. Administrator passwords are reset by a signed-in administrator; automatic email recovery is not implemented.
 
-## Access setup required before it will serve content
+## Deployment
 
-1. Configure Cloudflare Access on the entire Worker, including its workers.dev address and any preview/custom addresses. Enable One-time PIN and add only the approved visitor email. Set an eight-hour session.
-2. Set ACCESS_TEAM_DOMAIN to the actual team domain (name.cloudflareaccess.com), ACCESS_AUD to this application's actual Audience tag, and ALLOWED_EMAILS to the comma-separated approved visitor emails in Worker variables.
-3. Update both Access policy and ALLOWED_EMAILS when adding/removing users. Revoke active Access sessions when immediately removing someone.
-4. Configure Access before testing normal visits. The Worker returns 401 until configuration and a valid signed Access JWT are present. There is no public development bypass.
+Source snapshot is the parent digital-tools repository. In cloudflare-klz run npm install --no-audit --no-fund, npm test, KLZ_SOURCE_ROOT=.. npm run build, npx wrangler deploy. The main-branch workflow .github/workflows/deploy-klz-cloudflare.yml checks out this branch and deploys with repository secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID. Dashboard secret variables are preserved. Account/session data is stored in a private SQLite-backed Durable Object named ACCOUNTS, created by the accounts-v1 migration. No Zero Trust subscription is needed. Account data is not stored in GitHub. Back up before migrations; do not remove the namespace binding or reset storage.
 
-Worker checks RS256 signature, issuer, audience, expiry and email. All files pass through authentication; assets.run_worker_first=true. Preview URLs disabled. No GitHub token is needed for current public JSON sources.
+## Security boundaries
 
-## Behaviour
-
-/myweb-klz.html links to /tools-klz.html. Return button always goes to /myweb-klz.html. Other sites retain existing GitHub URLs. Monitor fetches one /api/snapshot every 15 minutes, and on focus only when due. Response combines ticker configuration, KLZ defaults, market data and dividends. Upstream failure keeps existing browser display and reports failure. GitHub admin saves apply on reload. Price checker is unaffected.
-
-## Verification
-
-npm test covers missing authentication/configuration, signed approved users, wrong user/audience, expiry/tampering, protected asset/API paths, upstream errors and KLZ-only defaults. npm run build and wrangler deploy --dry-run validate package. Live OTP login, CPU usage, mobile rendering and Excel file selection require testing after deployment.
-
-## Boundaries
-
-This protects Cloudflare access, not existing public GitHub copies or public JSON. No existing GitHub page has been redirected or retired. Authorised users can inspect received frontend files. This branch must not be merged automatically into main; it is an isolated deployment preparation branch.
+All HTML and assets pass through the Worker before serving. The JSON endpoint requires an active account. Existing public GitHub pages and JSON remain public; this deployment does not retire those copies. Authorised users can still inspect downloaded frontend HTML and JavaScript. Live testing of login, mobile layout and Excel saves is required after initial account setup.
