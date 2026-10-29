@@ -1,4 +1,4 @@
-name: Deploy KLZ to Cloudflare
+name: Deploy Client monitor to Cloudflare
 on:
   workflow_dispatch:
   push:
@@ -23,12 +23,12 @@ jobs:
           test -n "$CF_ACCOUNT" || { echo "::error::Add CLOUDFLARE_ACCOUNT_ID under repository Actions secrets."; exit 1; }
       - uses: actions/checkout@v4
         with:
-          ref: cloudflare/klz-private-20261029
+          ref: cloudflare/client-20261030
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install and build KLZ
+      - name: Install and build Client monitor
         working-directory: cloudflare-klz
         env:
           KLZ_SOURCE_ROOT: ..
@@ -47,40 +47,60 @@ jobs:
           config.vars={};
           fs.writeFileSync(file,JSON.stringify(config,null,2));
           JS
-      - name: Register workers.dev address if missing
+      - name: Check account hostname scope
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           python - <<'PY'
-          import os,json,urllib.request,urllib.error
-          url='https://api.cloudflare.com/client/v4/accounts/'+os.environ['CF_ACCOUNT']+'/workers/subdomain'
-          headers={'Authorization':'Bearer '+os.environ['CF_TOKEN'],'Content-Type':'application/json'}
-          def call(method,body=None):
-              req=urllib.request.Request(url,data=None if body is None else json.dumps(body).encode(),headers=headers,method=method)
-              try:
-                  with urllib.request.urlopen(req,timeout=30) as r:return json.load(r)
-              except urllib.error.HTTPError as e:
-                  try:return json.loads(e.read())
-                  except Exception:return {'success':False,'errors':[{'code':e.code,'message':'Cloudflare rejected request'}]}
-          existing=call('GET')
-          current=(existing.get('result') or {}).get('subdomain')
-          if current:
-              print('Existing workers.dev address retained: '+current)
-          else:
-              result=call('PUT',{'subdomain':'jjkwan118-klz'})
-              if not result.get('success'):
-                  print('::error::Cloudflare workers.dev registration failed: '+json.dumps(result.get('errors',[])))
-                  raise SystemExit(1)
-              print('Registered workers.dev address: '+result['result']['subdomain'])
+          import os,json,urllib.request
+          base='https://api.cloudflare.com/client/v4/accounts/'+os.environ['CF_ACCOUNT']
+          headers={'Authorization':'Bearer '+os.environ['CF_TOKEN']}
+          def get(path):
+              with urllib.request.urlopen(urllib.request.Request(base+path,headers=headers),timeout=30) as r:d=json.load(r)
+              if not d.get('success'):raise RuntimeError('Cloudflare scope check failed')
+              return d['result']
+          scripts=get('/workers/scripts')
+          unrelated=[s['id'] for s in scripts if s['id'] not in ['klz-monitor','client-monitor']]
+          if unrelated:raise RuntimeError('Hostname change stopped: unrelated Workers exist: '+', '.join(unrelated))
+          current=get('/workers/subdomain')['subdomain']
+          if current not in ['jjkwan118-klz','myai118-client']:raise RuntimeError('Unexpected current subdomain; no change made')
+          print('Hostname scope checked: '+current)
           PY
-      - name: Deploy protected KLZ Worker
+      - name: Deploy protected Client Worker
         working-directory: cloudflare-klz
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           WRANGLER_SEND_METRICS: 'false'
         run: npx wrangler deploy
+      - name: Preserve account namespace and activate Client hostname
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request
+          base='https://api.cloudflare.com/client/v4/accounts/'+os.environ['CF_ACCOUNT']
+          headers={'Authorization':'Bearer '+os.environ['CF_TOKEN'],'Content-Type':'application/json'}
+          def call(path,method='GET',body=None):
+              req=urllib.request.Request(base+path,headers=headers,method=method,data=None if body is None else json.dumps(body).encode())
+              with urllib.request.urlopen(req,timeout=30) as r:d=json.load(r)
+              if not d.get('success'):raise RuntimeError('Cloudflare operation failed: '+json.dumps(d.get('errors',[])))
+              return d['result']
+          def namespace(script):
+              bindings=call('/workers/scripts/'+script+'/settings')['bindings']
+              matches=[b for b in bindings if b.get('name')=='ACCOUNTS']
+              if len(matches)!=1 or not matches[0].get('namespace_id'):raise RuntimeError('Cannot verify account namespace')
+              return matches[0]['namespace_id']
+          if namespace('klz-monitor')!=namespace('client-monitor'):raise RuntimeError('Account namespace mismatch; hostname not changed')
+          print('Verified: Client monitor uses the existing account namespace.')
+          desired='myai118-client'
+          if call('/workers/subdomain')['subdomain']!=desired:
+              result=call('/workers/subdomain','PUT',{'subdomain':desired})
+              if result.get('subdomain')!=desired:raise RuntimeError('Hostname change was not confirmed')
+          print('Client URL: https://client-monitor.myai118-client.workers.dev')
+          PY
       - name: Check setup secret name without reading its value
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -101,7 +121,7 @@ jobs:
         run: |
           python - <<'PY'
           import urllib.request,urllib.error,time
-          base='https://klz-monitor.jjkwan118-klz.workers.dev'
+          base='https://client-monitor.myai118-client.workers.dev'
           for attempt in range(3):
               try:
                   with urllib.request.urlopen(base+'/login',timeout=20) as r:
@@ -116,8 +136,11 @@ jobs:
                   print('Live login works; direct monitor access requires login; data endpoint rejects unauthenticated requests.')
                   break
               except urllib.error.HTTPError as e:
+                  body=e.read().decode(errors='replace')
+                  if e.code==403 and '1010' in body:
+                      print('::warning::Cloudflare blocked the automated runner (1010). Deployment succeeded; browser verification is required.')
+                      break
                   print('Live check failed at '+e.url+' status '+str(e.code))
-                  print(e.read().decode(errors='replace')[:2000])
                   raise
               except Exception:
                   if attempt==2:raise
