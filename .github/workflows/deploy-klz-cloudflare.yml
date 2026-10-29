@@ -81,5 +81,27 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           WRANGLER_SEND_METRICS: 'false'
         run: npx wrangler deploy
+      - name: Verify deployed login and protected data
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.error,time
+          base='https://klz-monitor.jjkwan118-klz.workers.dev'
+          for attempt in range(3):
+              try:
+                  with urllib.request.urlopen(base+'/login',timeout=20) as r:
+                      assert r.status==200 and 'KLZ sign in' in r.read().decode()
+                  with urllib.request.urlopen(base+'/tools-klz.html',timeout=20) as r:
+                      assert '/login' in r.url and 'KLZ sign in' in r.read().decode()
+                  try:
+                      urllib.request.urlopen(base+'/api/snapshot',timeout=20)
+                      raise AssertionError('Unauthenticated data request was accepted')
+                  except urllib.error.HTTPError as e:
+                      assert e.code==401
+                  print('Live login works; direct monitor access requires login; data endpoint rejects unauthenticated requests.')
+                  break
+              except Exception:
+                  if attempt==2:raise
+                  time.sleep(3)
+          PY
 
 # Deploy individual accounts with private Durable Object storage.
