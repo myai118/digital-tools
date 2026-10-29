@@ -1,22 +1,5 @@
-import {createRemoteJWKSet, jwtVerify} from 'jose';
-const keySets = new Map();
-export async function authorised(request, env, resolver) {
-  const domain = env.ACCESS_TEAM_DOMAIN || '';
-  if (!/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(domain) || !env.ACCESS_AUD) return false;
-  const token = request.headers.get('Cf-Access-Jwt-Assertion');
-  if (!token) return false;
-  try {
-    if (!resolver) {
-      if (!keySets.has(domain)) keySets.set(domain, createRemoteJWKSet(new URL(`https://${domain}/cdn-cgi/access/certs`)));
-      resolver = keySets.get(domain);
-    }
-    const {payload} = await jwtVerify(token, resolver, {
-      issuer: `https://${domain}`, audience: env.ACCESS_AUD, algorithms: ['RS256'], requiredClaims: ['exp','iat','email']
-    });
-    const allowed = (env.ALLOWED_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    return typeof payload.email === 'string' && allowed.includes(payload.email.toLowerCase());
-  } catch { return false; }
-}
+import {Accounts,loginPage,accountsPage,page,htmlEscape} from './accounts.mjs';
+export {Accounts};
 function secure(response) {
   const result = new Response(response.body, response);
   result.headers.set('Cache-Control','private, no-store');
@@ -45,19 +28,70 @@ export async function snapshot(fetcher=fetch) {
   result.defaults = {version:1,pages:{'tools/klz.html':{visibleTickers:entry.visibleTickers,settingsPassword:entry.settingsPassword}}};
   return result;
 }
-export function handler(auth=authorised, getSnapshot=snapshot) {
- return {async fetch(request,env) {
-  if (!await auth(request,env)) return secure(new Response('Sign-in required. Open the protected KLZ address and sign in with your approved email.',{status:401}));
-  if (!['GET','HEAD'].includes(request.method)) return secure(new Response('Method not allowed',{status:405,headers:{Allow:'GET, HEAD'}}));
-  const url = new URL(request.url);
-  if (url.pathname === '/') return secure(Response.redirect(new URL('/myweb-klz.html',url),302));
-  if (url.pathname === '/api/snapshot') {
-    if(request.method === 'HEAD')return secure(new Response(null));
-    try {return secure(Response.json(await getSnapshot()));}
-    catch {return secure(Response.json({error:'Unable to retrieve the latest GitHub data. Previously displayed prices remain unchanged; try again later.'},{status:502}));}
+
+const cookieName='__Host-klz-session';
+function cookie(request){return request.headers.get('Cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(cookieName+'='))?.slice(cookieName.length+1)||'';}
+function nextPath(value){return ['/myweb-klz.html','/tools-klz.html','/accounts','/account'].includes(value)?value:'/myweb-klz.html';}
+const html=(body,status=200)=>new Response(body,{status,headers:{'Content-Type':'text/html; charset=utf-8'}});
+function redirect(path,extra={}){return new Response(null,{status:303,headers:{Location:path,...extra}});}
+function sessionCookie(token){return cookieName+'='+token+'; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=28800';}
+export function handler(getSnapshot=snapshot){return {async fetch(request,env){
+ try{return secure(await route(request,env,getSnapshot));}
+ catch{return secure(html(page('Unavailable','<h1>Temporarily unavailable</h1><p>Please try again shortly.</p>'),503));}
+}};}
+async function route(request,env,getSnapshot){
+ const url=new URL(request.url),path=url.pathname;
+ if(!env.ACCOUNTS)return html(page('Setup required','<h1>Account storage setup required</h1>'),503);
+ const stub=env.ACCOUNTS.get(env.ACCOUNTS.idFromName('klz-accounts-v1'));
+ async function call(body){return stub.fetch('https://accounts.internal/',{method:'POST',body:JSON.stringify(body)});}
+ if(request.method==='POST'){
+  if(request.headers.get('Origin')!==url.origin)return new Response('Invalid request origin',{status:403});
+  if(Number(request.headers.get('Content-Length')||0)>8192)return new Response('Request too large',{status:413});
+  const raw=await request.text();if(raw.length>8192)return new Response('Request too large',{status:413});
+  const values=Object.fromEntries(new URLSearchParams(raw));
+  if(path==='/login'||path==='/setup'){
+   const response=await call({...values,op:path==='/setup'?'setup':'login',ip:request.headers.get('CF-Connecting-IP')||'unknown'});
+   const result=await response.json();
+   if(!response.ok)return html(loginPage(nextPath(values.next),result.error,path==='/setup'),response.status);
+   return redirect(nextPath(values.next),{'Set-Cookie':sessionCookie(result.token)});
   }
-  if (url.pathname.startsWith('/api/')) return secure(new Response('Not found',{status:404}));
-  return secure(await env.ASSETS.fetch(request));
- }};
+  const token=cookie(request);
+  if(path==='/logout'){
+   const response=await call({op:'logout',token,csrf:values.csrf});
+   if(!response.ok)return new Response('Invalid or expired session',{status:403});
+   return redirect('/login',{'Set-Cookie':cookieName+'=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'});
+  }
+  if(path==='/accounts'){
+   if(!['create','reset','disable','enable'].includes(values.op))return new Response('Invalid action',{status:400});
+   const response=await call({...values,token});
+   if(response.ok)return redirect('/accounts');
+   const {user}=await(await call({op:'session',token})).json();
+   if(!user?.admin)return new Response('Administrator access required',{status:403});
+   const {users=[]}=await(await call({op:'list',token})).json();
+   return html(accountsPage(user,users,(await response.json()).error),response.status);
+  }
+  return new Response('Not found',{status:404});
+ }
+ if(!['GET','HEAD'].includes(request.method))return new Response('Method not allowed',{status:405});
+ if(path==='/login'||path==='/setup')return html(loginPage(nextPath(url.searchParams.get('next')),'',path==='/setup'));
+ const token=cookie(request);
+ const {user}=await(await call({op:'session',token})).json();
+ if(!user){
+  if(path.startsWith('/api/'))return Response.json({error:'Sign in required'},{status:401});
+  return redirect('/login?next='+encodeURIComponent(nextPath(path)));
+ }
+ if(path==='/')return redirect('/myweb-klz.html');
+ if(path==='/account')return html(page('Your account',`<h1>Your KLZ account</h1><p>${htmlEscape(user.email)}</p><a href="/myweb-klz.html">Back to KLZ</a>${user.admin?'<p><a href="/accounts">Manage accounts</a></p>':''}<form method="post" action="/logout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button>Sign out</button></form>`));
+ if(path==='/accounts'){
+  if(!user.admin)return new Response('Administrator access required',{status:403});
+  const {users=[]}=await(await call({op:'list',token})).json();return html(accountsPage(user,users));
+ }
+ if(path==='/api/snapshot'){
+  if(request.method==='HEAD')return new Response(null);
+  try{return Response.json(await getSnapshot());}
+  catch{return Response.json({error:'Unable to retrieve latest GitHub data. Previous prices and timestamps are retained.'},{status:502});}
+ }
+ if(path.startsWith('/api/'))return new Response('Not found',{status:404});
+ return env.ASSETS.fetch(request);
 }
 export default handler();
