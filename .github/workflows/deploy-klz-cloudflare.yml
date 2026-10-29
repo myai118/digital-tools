@@ -99,6 +99,10 @@ jobs:
                       assert e.code==401
                   print('Live login works; direct monitor access requires login; data endpoint rejects unauthenticated requests.')
                   break
+              except urllib.error.HTTPError as e:
+                  print('Live check failed at '+e.url+' status '+str(e.code))
+                  print(e.read().decode(errors='replace')[:2000])
+                  raise
               except Exception:
                   if attempt==2:raise
                   time.sleep(3)
