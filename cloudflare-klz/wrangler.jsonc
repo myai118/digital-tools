@@ -1,5 +1,5 @@
 {
-  "name": "klz-monitor",
+  "name": "client-monitor",
   "main": "worker.mjs",
   "compatibility_date": "2026-10-29",
   "workers_dev": true,
@@ -14,16 +14,9 @@
     "bindings": [
       {
         "name": "ACCOUNTS",
-        "class_name": "Accounts"
+        "class_name": "Accounts",
+        "script_name": "klz-monitor"
       }
     ]
-  },
-  "migrations": [
-    {
-      "tag": "accounts-v1",
-      "new_sqlite_classes": [
-        "Accounts"
-      ]
-    }
-  ]
+  }
 }
