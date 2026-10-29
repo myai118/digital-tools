@@ -1,5 +1,5 @@
-import {Accounts,loginPage,accountsPage,page,htmlEscape} from './accounts.mjs';
-export {Accounts};
+import {loginPage,accountsPage,page,htmlEscape} from './accounts.mjs';
+// Account storage remains in klz-monitor; do not delete that Worker.
 function secure(response) {
   const result = new Response(response.body, response);
   result.headers.set('Cache-Control','private, no-store');
