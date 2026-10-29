@@ -1,6 +1,9 @@
 name: Deploy KLZ to Cloudflare
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/deploy-klz-cloudflare.yml']
 permissions:
   contents: read
 concurrency:
