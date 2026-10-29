@@ -48,7 +48,10 @@ export class Accounts {
    if(await this.limited('ip:'+ip,20)||await this.limited('email:'+who,10))return json({error:'Too many attempts. Try again in 15 minutes.'},429);
    if(!validEmail(who)||!strong(b.password))return json({error:'Email or password is incorrect.'},401);
    if(op==='setup'){
-    if(who!=='jjkwan118@gmail.com'||!this.env.SETUP_KEY||String(this.env.SETUP_KEY).length<24||!await sameSecret(b.setupKey||'',this.env.SETUP_KEY))return json({error:'Setup is unavailable or the setup key is incorrect.'},403);
+    if(who!=='jjkwan118@gmail.com')return json({error:'Use the administrator email shown on this page.'},403);
+    if(!this.env.SETUP_KEY)return json({error:'SETUP_KEY is missing from the active account service. Add it in the klz-monitor Production settings and deploy.'},503);
+    if(String(this.env.SETUP_KEY).length<24)return json({error:'The saved SETUP_KEY is shorter than 24 characters. Replace it in Cloudflare and deploy.'},503);
+    if(!await sameSecret(b.setupKey||'',this.env.SETUP_KEY))return json({error:'The entered setup key does not match the value saved in Cloudflare. Enter that exact value, including capital letters and symbols.'},403);
     const salt=random(),hash=await passwordHash(b.password,salt);
     const created=await this.store.transaction(async tx=>{
      if(await tx.get('initialised'))return false;
