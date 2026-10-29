@@ -15,3 +15,7 @@ Source snapshot is the parent digital-tools repository. In cloudflare-klz run np
 ## Security boundaries
 
 All HTML and assets pass through the Worker before serving. The JSON endpoint requires an active account. Existing public GitHub pages and JSON remain public; this deployment does not retire those copies. Authorised users can still inspect downloaded frontend HTML and JavaScript. Live testing of login, mobile layout and Excel saves is required after initial account setup.
+
+## Client hostname
+
+Public Worker: client-monitor at https://client-monitor.myai118-client.workers.dev. The ACCOUNTS binding uses class Accounts from script_name klz-monitor and the existing object name klz-accounts-v1. Keep klz-monitor deployed: it owns all existing account storage and authentication secrets. Do not delete that Worker or create a replacement account namespace. This branch intentionally exports no Durable Object class and declares no new migrations. Changing the hostname requires users to sign in again; existing accounts and passwords remain valid.
