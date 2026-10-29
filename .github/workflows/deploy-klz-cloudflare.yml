@@ -74,7 +74,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           WRANGLER_SEND_METRICS: 'false'
         run: npx wrangler deploy
-      - name: Preserve account namespace and activate Client hostname
+      - name: Verify existing account namespace and current hostname
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -100,11 +100,12 @@ jobs:
               return matches[0]['namespace_id']
           if namespace('klz-monitor')!=namespace('client-monitor'):raise RuntimeError('Account namespace mismatch; hostname not changed')
           print('Verified: Client monitor uses the existing account namespace.')
-          desired='myai118-client'
-          if call('/workers/subdomain')['subdomain']!=desired:
-              result=call('/workers/subdomain','PUT',{'subdomain':desired})
-              if result.get('subdomain')!=desired:raise RuntimeError('Hostname change was not confirmed')
-          print('Client URL: https://client-monitor.myai118-client.workers.dev')
+          current=call('/workers/subdomain')['subdomain']
+          base_url='https://client-monitor.'+current+'.workers.dev'
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('CLIENT_BASE_URL='+base_url+'\n')
+          print('Current Client URL: '+base_url)
+          if current!='myai118-client':
+              print('::warning::Dashboard subdomain rename remains pending: change Your subdomain to myai118-client in Workers & Pages.')
           PY
       - name: Check setup secret name without reading its value
         env:
@@ -125,8 +126,8 @@ jobs:
       - name: Verify deployed login and protected data
         run: |
           python - <<'PY'
-          import urllib.request,urllib.error,time
-          base='https://client-monitor.myai118-client.workers.dev'
+          import os,urllib.request,urllib.error,time
+          base=os.environ['CLIENT_BASE_URL']
           for attempt in range(3):
               try:
                   with urllib.request.urlopen(base+'/login',timeout=20) as r:
