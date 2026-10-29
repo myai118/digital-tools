@@ -25,7 +25,7 @@ function writeSettings(s){
  $('categoryETF').checked=s.categories.ETF;$('categoryStock').checked=s.categories.Stock;$('categoryFund').checked=s.categories.Fund;
  for(const id of ['checkerEnabled','checkerInterval','refillThreshold','topUpJobs','categoryETF','categoryStock','categoryFund'])$(id).disabled=false;
  $('save').disabled=false;$('startPrice').disabled=false;$('startAth').disabled=false;
- $('currentState').textContent='Price checker '+(s.enabled?'ON':'OFF')+' · '+s.intervalMinutes+' min interval · one check per program · add '+s.topUpJobs+' jobs when '+s.refillThreshold+' or fewer remain.';
+ $('currentState').textContent='Price checker '+(s.enabled?'ON':'OFF')+' · '+s.intervalMinutes+' min interval · one check per program · add '+s.topUpJobs+' price checker programs when '+s.refillThreshold+' or fewer remain.';
 }
 function lock(value){busy=value;for(const id of ['reload','save','startPrice','startAth','checkerEnabled','checkerInterval','refillThreshold','topUpJobs','categoryETF','categoryStock','categoryFund'])$(id).disabled=value||!loadedConfig;}
 async function githubFile(token=''){
@@ -46,7 +46,7 @@ async function save(){
  const token=$('token').value.trim();
  if(!token){setStatus('Enter a fine-grained token created under sgkjeajk with Contents read/write access to stkref.',true);$('token').focus();return;}
  const settings=readSettings();
- if(!INTERVALS.includes(settings.intervalMinutes)||!Number.isInteger(settings.cycles)||settings.cycles<1||!Number.isInteger(settings.refillThreshold)||settings.refillThreshold<0||!Number.isInteger(settings.topUpJobs)||settings.topUpJobs<1){setStatus('Choose a supported interval, a refill threshold of 0 or more, and at least 1 job per top-up.',true);return;}
+ if(!INTERVALS.includes(settings.intervalMinutes)||!Number.isInteger(settings.cycles)||settings.cycles<1||!Number.isInteger(settings.refillThreshold)||settings.refillThreshold<0||!Number.isInteger(settings.topUpJobs)||settings.topUpJobs<1){setStatus('Choose a supported interval, a refill threshold of 0 or more, and at least 1 price checker program per top-up.',true);return;}
  lock(true);setStatus('Checking the latest STKREF settings…');
  try{
   const latest=await githubFile(token);
@@ -65,13 +65,13 @@ async function startJob(refreshAth){
  if(busy||!loadedConfig)return;
  const token=$('token').value.trim();
  if(!token){setStatus('Enter a fine-grained token created under sgkjeajk with Actions write access to stkref.',true);$('token').focus();return;}
- if(JSON.stringify(readSettings())!==JSON.stringify(normalise(loadedConfig))){setStatus('Save your settings before starting a job.',true);return;}
- lock(true);setStatus(refreshAth?'Starting price and ATH refresh…':'Starting the price checker job…');
+ if(JSON.stringify(readSettings())!==JSON.stringify(normalise(loadedConfig))){setStatus('Save your settings before starting a price checker program.',true);return;}
+ lock(true);setStatus(refreshAth?'Starting price and ATH refresh…':'Starting the price checker program…');
  try{
   const cycles=1;
   const response=await fetch(DISPATCH,{method:'POST',headers:{Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28',Authorization:'Bearer '+token},body:JSON.stringify({ref:BRANCH,inputs:{refresh_ath:refreshAth,checker_cycles:String(cycles),force_price_check:!refreshAth}})});
   const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.message||'GitHub could not start the STKREF workflow. Confirm the token has Actions write permission.');
-  $('token').value='';setStatus((refreshAth?'Price and ATH refresh':'Price checker job')+' started. Track progress in STKREF Actions.');
+  $('token').value='';setStatus((refreshAth?'Price and ATH refresh':'Price checker program')+' started. Track progress in STKREF Actions.');
  }catch(error){setStatus(error.message,true);}
  finally{lock(false);}
 }
