@@ -32,7 +32,7 @@ export async function snapshot(fetcher=fetch) {
 const cookieName='__Host-klz-session';
 function cookie(request){return request.headers.get('Cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(cookieName+'='))?.slice(cookieName.length+1)||'';}
 function nextPath(value){return ['/myweb-klz.html','/tools-klz.html','/accounts','/account'].includes(value)?value:'/myweb-klz.html';}
-function parseTickers(value){return [...new Set(String(value||'').split(/[\\s,;]+/).map(v=>v.trim().toUpperCase()).filter(Boolean))];}
+function parseTickers(value){return [...new Set(String(value||'').split(/[\s,;]+/).map(v=>v.trim().toUpperCase()).filter(Boolean))];}
 function scopeSnapshot(snapshot,user){
  const entry=snapshot.defaults?.pages?.['tools/klz.html']||{};
  const tickers=Array.isArray(user.tickers)?user.tickers:(user.admin?(entry.visibleTickers||[]):[]);
