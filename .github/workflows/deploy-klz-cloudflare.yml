@@ -153,4 +153,4 @@ jobs:
                   time.sleep(3)
           PY
 
-# Deploy individual accounts with private Durable Object storage.
+# Deploy Client monitor with private account storage and fixed KLZ landing-page return.
