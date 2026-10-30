@@ -12,6 +12,7 @@ const email=s=>String(s||'').trim().toLowerCase();
 const validEmail=s=>s.length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 const strong=p=>typeof p==='string'&&p.length>=12&&p.length<=256;
 const json=(v,status=200)=>Response.json(v,{status});
+function cleanTickerList(value){if(!Array.isArray(value)||value.length>100)return null;const list=value.map(v=>String(v||'').trim().toUpperCase()).filter(Boolean);if(list.some(v=>!/^[A-Z0-9][A-Z0-9.-]{0,24}$/.test(v)))return null;return [...new Set(list)];}
 export class Accounts {
  constructor(ctx,env){this.ctx=ctx;this.store=ctx.storage;this.env=env;}
  async limited(key,max){
@@ -30,7 +31,7 @@ export class Accounts {
   if(row.expires<=Date.now()){await this.store.delete(key);return null;}
   const user=await this.store.get('user:'+row.email);
   if(!user||user.disabled||row.version!==user.version)return null;
-  return {email:user.email,admin:user.admin,csrf:row.csrf};
+  return {email:user.email,admin:user.admin,csrf:row.csrf,tickers:Array.isArray(user.tickers)?user.tickers:null};
  }
  async fetch(request){
   try{return await this.handle(await request.json());}catch{return json({error:'Account service unavailable. Please try again.'},503);}
@@ -74,22 +75,27 @@ export class Accounts {
   if(!actor.admin)return json({error:'Administrator access required.'},403);
   if(op==='list'){
    const users=await this.store.list({prefix:'user:'});
-   return json({users:[...users.values()].map(({email,disabled,admin})=>({email,disabled,admin}))});
+   return json({users:[...users.values()].map(u=>({email:u.email,disabled:u.disabled,admin:u.admin,tickers:Array.isArray(u.tickers)?u.tickers:[]}))});
   }
   if(!await sameSecret(b.csrf||'',actor.csrf))return json({error:'Invalid request. Reload the page.'},403);
   const who=email(b.email),key='user:'+who;
   if(!validEmail(who))return json({error:'Enter a valid email address.'},400);
   if(op==='create'){
    if(!strong(b.password))return json({error:'Use a password with 12–256 characters.'},400);
+   const tickers=cleanTickerList(b.tickers??[]);if(!tickers)return json({error:'Enter up to 100 valid ticker symbols.'},400);
    const salt=random(),hash=await passwordHash(b.password,salt);
    const result=await this.store.transaction(async tx=>{
     if(await tx.get(key))return {error:'That account already exists.',status:409};
     if((await tx.list({prefix:'user:'})).size>=50)return {error:'Maximum 50 accounts, including the administrator.',status:400};
-    await tx.put(key,{email:who,salt,hash,admin:false,disabled:false,version:1});return {ok:true};
+    await tx.put(key,{email:who,salt,hash,admin:false,disabled:false,version:1,tickers});return {ok:true};
    });return json(result,result.status||200);
   }
   const target=await this.store.get(key);
   if(!target)return json({error:'Account not found.'},404);
+  if(op==='tickers'){
+   const tickers=cleanTickerList(b.tickers);if(!tickers)return json({error:'Enter up to 100 valid ticker symbols.'},400);
+   await this.store.transaction(async tx=>{const u=await tx.get(key);u.tickers=tickers;await tx.put(key,u);});return json({ok:true});
+  }
   if(op==='disable'||op==='enable'){
    if(target.admin)return json({error:'The administrator account cannot be disabled.'},400);
    await this.store.transaction(async tx=>{const u=await tx.get(key);u.disabled=op==='disable';u.version++;await tx.put(key,u);});return json({ok:true});
@@ -111,11 +117,12 @@ export class Accounts {
  }
 }
 export const htmlEscape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function page(title,content){return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${htmlEscape(title)} — Client accounts</title><style>body{font:17px Arial,sans-serif;background:#f4fafc;color:#080873;margin:0}main{max-width:640px;margin:40px auto;padding:24px;background:white;border:1px solid #cce0f5;border-radius:12px}h1{font-size:28px}label{display:block;margin:18px 0}input{display:block;box-sizing:border-box;width:100%;padding:12px;font:inherit;margin-top:6px}button,.button{display:inline-block;background:#0072ff;color:white;border:0;border-radius:6px;padding:12px 18px;font:inherit;text-decoration:none;cursor:pointer}a{color:#0072ff}.error{color:#a32717}small{line-height:1.5}li{padding:12px 0}form{margin:16px 0}hr{border:0;border-top:1px solid #ddd}</style></head><body><main>${content}</main></body></html>`;}
+export function page(title,content){return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${htmlEscape(title)} — Client accounts</title><style>body{font:17px Arial,sans-serif;background:#f4fafc;color:#080873;margin:0}main{max-width:640px;margin:40px auto;padding:24px;background:white;border:1px solid #cce0f5;border-radius:12px}h1{font-size:28px}label{display:block;margin:18px 0}input,textarea{display:block;box-sizing:border-box;width:100%;padding:12px;font:inherit;margin-top:6px}textarea{min-height:84px}button,.button{display:inline-block;background:#0072ff;color:white;border:0;border-radius:6px;padding:12px 18px;font:inherit;text-decoration:none;cursor:pointer}a{color:#0072ff}.error{color:#a32717}small{line-height:1.5}li{padding:12px 0}form{margin:16px 0}hr{border:0;border-top:1px solid #ddd}</style></head><body><main>${content}</main></body></html>`;}
 export function loginPage(next='/myweb-klz.html',error='',setup=false){
  return page(setup?'Create administrator account':'Sign in',`<h1>${setup?'Create your Client accounts administrator account':'Client accounts sign in'}</h1><p>${setup?'Set your own password. This setup can be completed once only.':'Enter your individual email and password.'}</p>${error?`<p class="error" role="alert">${htmlEscape(error)}</p>`:''}<form method="post" action="${setup?'/setup':'/login'}"><input type="hidden" name="next" value="${htmlEscape(next)}"><label>Email<input name="email" type="email" autocomplete="username" required ${setup?'value="jjkwan118@gmail.com" readonly':''}></label>${setup?'<label>Setup key<input name="setupKey" type="password" autocomplete="off" required minlength="24"></label>':''}<label>Password<input name="password" type="password" autocomplete="${setup?'new-password':'current-password'}" minlength="12" maxlength="256" required></label>${setup?'<p><small>Use at least 12 characters. Keep this password separate from your Cloudflare and GitHub passwords.</small></p>':''}<button type="submit">${setup?'Create account':'Sign in'}</button></form>${setup?'<a href="/login">Back to sign in</a>':'<p><small>Need an account or a password reset? Contact the Client accounts administrator.</small></p>'}`);
 }
 export function accountsPage(user,users,error=''){
  const csrf=`<input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}">`;
- return page('Manage accounts',`<h1>Client accounts</h1><p>${users.length} of 50 accounts</p><a href="/myweb-klz.html">Back to homepage</a>${error?`<p role="alert" class="error">${htmlEscape(error)}</p>`:''}<h2>Add an account</h2><form method="post" action="/accounts">${csrf}<input type="hidden" name="op" value="create"><label>Email<input name="email" type="email" required></label><label>Initial password<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></label><button>Add account</button></form><p><small>Give the account details to the user privately. Passwords are stored as salted hashes and cannot be viewed here.</small></p><hr><h2>Existing accounts</h2><ul>${users.map(u=>`<li><strong>${htmlEscape(u.email)}</strong> · ${u.admin?'Administrator':u.disabled?'Disabled':'Enabled'}${!u.admin?`<form method="post" action="/accounts">${csrf}<input type="hidden" name="email" value="${htmlEscape(u.email)}"><button name="op" value="${u.disabled?'enable':'disable'}">${u.disabled?'Enable':'Disable'}</button></form>`:''}<form method="post" action="/accounts">${csrf}<input type="hidden" name="email" value="${htmlEscape(u.email)}"><input type="hidden" name="op" value="reset"><label>New password<input type="password" name="password" autocomplete="new-password" minlength="12" maxlength="256" required></label><button>Reset password and end sessions</button></form></li>`).join('')}</ul>`);
+ const tickerField=(tickers=[])=>`<label>Tickers for this account <small>(comma or line separated; up to 100)</small><textarea name="tickers" maxlength="3000" placeholder="VOO, QQQ, D05.SI">${htmlEscape(tickers.join(', '))}</textarea></label>`;
+ return page('Manage accounts',`<h1>Client accounts</h1><p>${users.length} of 50 accounts</p><a href="/myweb-klz.html">Back to homepage</a>${error?`<p role="alert" class="error">${htmlEscape(error)}</p>`:''}<h2>Add an account</h2><form method="post" action="/accounts">${csrf}<input type="hidden" name="op" value="create"><label>Email<input name="email" type="email" required></label><label>Initial password<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></label>${tickerField()}<button>Add account</button></form><p><small>Choose only tickers enabled in the shared price checker. Users see only their assigned list. Passwords are stored as salted hashes and cannot be viewed here.</small></p><hr><h2>Existing accounts</h2><ul>${users.map(u=>`<li><strong>${htmlEscape(u.email)}</strong> · ${u.admin?'Administrator':u.disabled?'Disabled':'Enabled'}${!u.admin?`<form method="post" action="/accounts">${csrf}<input type="hidden" name="email" value="${htmlEscape(u.email)}"><button name="op" value="${u.disabled?'enable':'disable'}">${u.disabled?'Enable':'Disable'}</button></form>`:''}<form method="post" action="/accounts">${csrf}<input type="hidden" name="email" value="${htmlEscape(u.email)}"><input type="hidden" name="op" value="tickers">${tickerField(u.tickers||[])}<button>Save ticker list</button></form><form method="post" action="/accounts">${csrf}<input type="hidden" name="email" value="${htmlEscape(u.email)}"><input type="hidden" name="op" value="reset"><label>New password<input type="password" name="password" autocomplete="new-password" minlength="12" maxlength="256" required></label><button>Reset password and end sessions</button></form></li>`).join('')}</ul>`);
 }
