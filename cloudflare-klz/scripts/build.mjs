@@ -12,7 +12,7 @@ await save('myweb-klz.html',landing);
 let monitor=await read('stock-monitor/tools/kwc.html');
 monitor=monitor.replaceAll('../../assets/','/assets/').replaceAll('../../','/').replaceAll('../display-defaults.css','/scripts/display-defaults.css').replaceAll('../display-defaults.js','/scripts/display-defaults.js').replaceAll('../previous-page-button.js','/scripts/previous-page-button.js');
 for(const file of ['xlsx-writer.js','monitor-page-defaults.js','desktop-excel-save.js']) monitor=monitor.replaceAll(`src="${file}`,`src="/scripts/${file}`);
-monitor=monitor.replace('data-fallback-url="/"','data-fallback-url="/myweb-klz.html"').replace('<script src="/scripts/display-defaults.js','<script src="/scripts/snapshot-client.js"></script><script src="/scripts/display-defaults.js');
+monitor=monitor.replace('data-fallback-url="/"','data-fallback-url="https://myai118.github.io/digital-tools/myweb/klz.html" data-return-always="true"').replace('<script src="/scripts/display-defaults.js','<script src="/scripts/snapshot-client.js"></script><script src="/scripts/display-defaults.js');
 monitor=monitor.replaceAll('The price checker runs every 5 minutes on weekdays; quote updates depend on market hours and data availability.','Prices are checked every 6 minutes on weekdays. This page checks for published data every 15 minutes; quote updates depend on market hours and data availability.');
 monitor=monitor.replace('</nav>',' <a href="/account">My account / Sign out</a></nav>');
 await save('tools-klz.html',monitor);
@@ -26,7 +26,7 @@ const a=renderer.indexOf('async function load(){');const b=renderer.indexOf('awa
 renderer=renderer.slice(0,a)+"async function load(){const snapshot=await window.KLZSnapshot.load();const {cfg,data,dividends:dividendData}=snapshot;if(dividendData&&Array.isArray(dividendData.instruments)){const byTicker=new Map(dividendData.instruments.map(x=>[x.ticker,x]));for(const row of (data.instruments||[])){const dividend=byTicker.get(row.ticker);if(dividend)Object.assign(row,dividend);}}"+renderer.slice(b);
 renderer=renderer.replace('60*1000','15*60*1000').replace("window.addEventListener('focus',()=>refresh(false));","window.addEventListener('focus',()=>{if(window.KLZSnapshot.due())refresh(false);});");
 await save('scripts/monitor-page-defaults.js',renderer);
-await save('scripts/previous-page-button.js',"'use strict';document.getElementById('previousPageButton')?.addEventListener('click',()=>{location.href='/myweb-klz.html';});\n");
+await save('scripts/previous-page-button.js',"'use strict';document.getElementById('previousPageButton')?.addEventListener('click',()=>{location.href='https://myai118.github.io/digital-tools/myweb/klz.html';});\n");
 for(const p of ['stock-monitor/display-defaults.css','stock-monitor/tools/xlsx-writer.js','stock-monitor/tools/desktop-excel-save.js'])await save('scripts/'+path.basename(p),await read(p));
 // Only these two images belong in the deployment, not the rest of the repository.
 for(const name of ['four-tools-overview-hires.webp','stock-etf-market.webp']){
