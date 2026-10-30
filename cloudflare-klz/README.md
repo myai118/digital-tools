@@ -15,3 +15,8 @@ Source snapshot is the parent digital-tools repository. In cloudflare-klz run np
 ## Security boundaries
 
 All HTML and assets pass through the Worker before serving. The JSON endpoint requires an active account. Existing public GitHub pages and JSON remain public; this deployment does not retire those copies. Authorised users can still inspect downloaded frontend HTML and JavaScript. Live testing of login, mobile layout and Excel saves is required after initial account setup.
+## Per-client ticker lists
+
+The Client Accounts administrator can assign up to 100 enabled ticker symbols to each login on the Client Accounts page. New client accounts start with an empty list until tickers are assigned. The administrator keeps the existing KLZ defaults unless a list is explicitly saved. Lists are stored with the account in the existing private Durable Object account store, not in GitHub. The authenticated snapshot endpoint returns only that account's configured instruments, prices and dividend records. The shared price checker still refreshes the common instrument catalogue once; a ticker must first be enabled there to be assigned to a client. No per-client checker program is created.
+
+Deploy the updated account-storage Worker (the `klz-monitor` Worker) before deploying the Client Worker, so the shared account service understands ticker-list updates. Keep the existing account namespace binding and Worker; replacing it would risk existing login data. The current Client deployment workflow deploys only the Client Worker, so coordinated deployment support must be added before publishing this feature.
