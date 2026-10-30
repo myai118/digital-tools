@@ -32,6 +32,15 @@ export async function snapshot(fetcher=fetch) {
 const cookieName='__Host-klz-session';
 function cookie(request){return request.headers.get('Cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(cookieName+'='))?.slice(cookieName.length+1)||'';}
 function nextPath(value){return ['/myweb-klz.html','/tools-klz.html','/accounts','/account'].includes(value)?value:'/myweb-klz.html';}
+function parseTickers(value){return [...new Set(String(value||'').split(/[\\s,;]+/).map(v=>v.trim().toUpperCase()).filter(Boolean))];}
+function scopeSnapshot(snapshot,user){
+ const entry=snapshot.defaults?.pages?.['tools/klz.html']||{};
+ const tickers=Array.isArray(user.tickers)?user.tickers:(user.admin?(entry.visibleTickers||[]):[]);
+ const allowed=new Set(tickers),result=structuredClone(snapshot);
+ for(const section of ['cfg','data','dividends'])if(Array.isArray(result[section]?.instruments))result[section].instruments=result[section].instruments.filter(row=>allowed.has(row.ticker));
+ result.defaults={version:1,pages:{'tools/klz.html':{visibleTickers:tickers,settingsPassword:entry.settingsPassword}}};
+ return result;
+}
 const html=(body,status=200)=>new Response(body,{status,headers:{'Content-Type':'text/html; charset=utf-8'}});
 function redirect(path,extra={}){return new Response(null,{status:303,headers:{Location:path,...extra}});}
 function sessionCookie(token){return cookieName+'='+token+'; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=28800';}
@@ -62,7 +71,20 @@ async function route(request,env,getSnapshot){
    return redirect('/login',{'Set-Cookie':cookieName+'=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'});
   }
   if(path==='/accounts'){
-   if(!['create','reset','disable','enable'].includes(values.op))return new Response('Invalid action',{status:400});
+   if(!['create','tickers','reset','disable','enable'].includes(values.op))return new Response('Invalid action',{status:400});
+   const showError=async(message,status=400)=>{const {user}=await(await call({op:'session',token})).json();if(!user?.admin)return new Response('Administrator access required',{status:403});const {users=[]}=await(await call({op:'list',token})).json();return html(accountsPage(user,users,message),status);};
+   if(values.op==='create'||values.op==='tickers'){
+    const tickers=parseTickers(values.tickers);
+    if(tickers.length>100)return showError('Enter no more than 100 ticker symbols.');
+    if(tickers.length){
+     let available;
+     try{const source=await getSnapshot();available=new Set((source.cfg?.instruments||[]).filter(x=>x.enabled).map(x=>x.ticker));}
+     catch{return showError('Ticker catalogue is temporarily unavailable. No changes were saved.',503);}
+     const unknown=tickers.filter(t=>!available.has(t));
+     if(unknown.length)return showError('These tickers are not enabled in the shared price checker: '+unknown.join(', ')+'. No changes were saved.');
+    }
+    values.tickers=tickers;
+   }
    const response=await call({...values,token});
    if(response.ok)return redirect('/accounts');
    const {user}=await(await call({op:'session',token})).json();
@@ -88,7 +110,7 @@ async function route(request,env,getSnapshot){
  }
  if(path==='/api/snapshot'){
   if(request.method==='HEAD')return new Response(null);
-  try{return Response.json(await getSnapshot());}
+  try{return Response.json(scopeSnapshot(await getSnapshot(),user));}
   catch{return Response.json({error:'Unable to retrieve latest GitHub data. Previous prices and timestamps are retained.'},{status:502});}
  }
  if(path.startsWith('/api/'))return new Response('Not found',{status:404});
