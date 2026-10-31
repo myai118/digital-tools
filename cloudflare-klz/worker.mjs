@@ -31,7 +31,7 @@ export async function snapshot(fetcher=fetch) {
 
 const cookieName='__Host-klz-session';
 function cookie(request){return request.headers.get('Cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(cookieName+'='))?.slice(cookieName.length+1)||'';}
-function nextPath(value){return ['/myweb-klz.html','/tools-klz.html','/monitor','/admin','/account'].includes(value)?value:(value==='/accounts'?'/admin':'/myweb-klz.html');}
+function nextPath(value){if(value==='/myweb-klz.html')return '/client-home.html';if(value==='/tools-klz.html'||value==='/monitor')return '/client-monitor.html';return ['/client-home.html','/client-monitor.html','/admin','/account'].includes(value)?value:(value==='/accounts'?'/admin':'/client-home.html');}
 function parseTickers(value){return [...new Set(String(value||'').split(/[\s,;]+/).map(v=>v.trim().toUpperCase()).filter(Boolean))];}
 function scopeSnapshot(snapshot,user){
  const entry=snapshot.defaults?.pages?.['tools/klz.html']||{};
@@ -121,9 +121,11 @@ async function route(request,env,getSnapshot){
   if(path.startsWith('/api/'))return Response.json({error:'Sign in required'},{status:401});
   return redirect('/login?next='+encodeURIComponent(nextPath(path)));
  }
- if(path==='/')return redirect('/myweb-klz.html');
- if(path==='/account')return html(page('Your account',`<h1>Your Client accounts profile</h1><p>${htmlEscape(user.email)}</p><a href="/myweb-klz.html">Back to homepage</a>${user.admin?'<p><a href="/admin">Client Admin</a></p>':''}<form method="post" action="/logout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button>Sign out</button></form>`));
- if(path==='/monitor')return redirect('/tools-klz.html');
+ if(path==='/')return redirect('/client-home.html');
+ if(path==='/myweb-klz.html')return redirect('/client-home.html');
+ if(path==='/tools-klz.html'||path==='/monitor')return redirect('/client-monitor.html');
+ if(path==='/account')return html(page('Your account',`<h1>Your Client accounts profile</h1><p>${htmlEscape(user.email)}</p><a href="/client-home.html">Back to homepage</a>${user.admin?'<p><a href="/admin">Client Admin</a></p>':''}<form method="post" action="/logout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button>Sign out</button></form>`));
+ 
  if(path==='/admin'||path==='/client-admin.html'){
   if(!user.admin)return new Response('Administrator access required',{status:403});
   const adminRequest=new Request(new URL('/client-admin.html',url.origin),{headers:request.headers});
@@ -148,3 +150,4 @@ async function route(request,env,getSnapshot){
  return env.ASSETS.fetch(request);
 }
 export default handler();
+
