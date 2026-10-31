@@ -2,16 +2,18 @@ import {readFile,writeFile,mkdir,copyFile,rm} from 'node:fs/promises';
 import path from 'node:path';
 const repo = path.resolve(process.env.KLZ_SOURCE_ROOT || 'source');
 const out = path.resolve('public');
+await rm(out,{recursive:true,force:true});
 await mkdir(path.join(out,'scripts'),{recursive:true});
 const read = p => readFile(path.join(repo,p),'utf8');
 const save = (p,s) => writeFile(path.join(out,p),s);
 let landing = await read('myweb/klz.html');
-landing=landing.replaceAll('../assets/','/assets/').replaceAll('https://myai118.github.io/digital-tools/stock-monitor/tools/klz.html','/monitor');
+landing=landing.replaceAll('../assets/','/assets/').replaceAll('https://myai118.github.io/digital-tools/stock-monitor/tools/klz.html','/client-monitor.html').replaceAll('https://client-monitor.myai118-client.workers.dev/tools-klz.html','/client-monitor.html');
 landing=landing.replace('<body', '<body').replace('</main>','<p style="text-align:center;padding:18px"><a href="/account">My account / Sign out</a></p></main>');
-await save('myweb-klz.html',landing);
+await save('client-home.html',landing);
 let admin=await read('market-watch-admin.html');
 admin=admin.replace('<title>Market Watch • Admin</title>','<title>Client Admin • Market Watch</title>');
 admin=admin.replace('Market Watch Admin','Client Admin');
+admin=admin.replace("connect-src 'self' https://api.github.com;","connect-src 'self' https://api.github.com https://raw.githubusercontent.com;");
 admin=admin.replace('<section class="panel" id="stkrefPriceCheckerSettings">',"<section class=\"panel\" id=\"clientProfileAdmin\"><div class=\"admin-head\"><div><h1>Client Admin</h1><p>Manage client accounts and each client’s ticker list</p></div></div>\n<p class=\"muted\">Account details and ticker assignments are saved in private Cloudflare account storage. Only enabled tickers in the shared catalogue can be assigned.</p>\n<div class=\"admin-action-row\"><label for=\"clientProfileSelect\">Client profile</label><select id=\"clientProfileSelect\"><option value=\"\">Loading profiles…</option></select><button id=\"reloadClientProfiles\" type=\"button\">Reload</button><span id=\"clientProfileState\" class=\"muted\"></span></div>\n<div class=\"admin-action-row\"><button id=\"toggleClientAccount\" type=\"button\" disabled>Disable account</button><span id=\"clientAccountStatus\" class=\"muted\"></span></div>\n<div class=\"admin-action-row\"><label for=\"clientTickerSearch\">Find tickers</label><input id=\"clientTickerSearch\" type=\"search\" placeholder=\"Ticker, name, market or type\" disabled></div>\n<div id=\"clientTickerList\" class=\"default-ticker-list\" aria-label=\"Tickers for selected client\"></div>\n<button id=\"saveClientTickers\" type=\"button\" class=\"primary\" disabled>Save this client’s ticker list</button>\n<p id=\"clientTickerStatus\" role=\"status\" aria-live=\"polite\">Loading client profiles…</p><hr><h2>Add a client account</h2>\n<form id=\"createClientForm\" class=\"add-form\"><div class=\"field\"><label for=\"newClientEmail\">Email</label><input id=\"newClientEmail\" type=\"email\" autocomplete=\"email\" required></div><div class=\"field\"><label for=\"newClientPassword\">Temporary password</label><input id=\"newClientPassword\" type=\"password\" autocomplete=\"new-password\" minlength=\"12\" maxlength=\"256\" required></div><button class=\"primary\" type=\"submit\">Add client</button></form>\n<p class=\"muted\">After adding the account, select it above and assign its tickers. Passwords are stored as salted hashes and cannot be viewed here.</p>\n<form id=\"resetClientPasswordForm\" class=\"admin-action-row\" hidden><label for=\"resetClientPassword\">New password</label><input id=\"resetClientPassword\" type=\"password\" autocomplete=\"new-password\" minlength=\"12\" maxlength=\"256\" required><button type=\"submit\">Reset password</button><span id=\"resetClientPasswordStatus\" class=\"muted\"></span></form></section>"+'<section class="panel" id="stkrefPriceCheckerSettings">');
 admin=admin.replace('href="stock-monitor/"','href="/monitor"');
 admin=admin.replace('href="stock-monitor/stkref-settings.html"','href="https://myai118.github.io/digital-tools/stock-monitor/stkref-settings.html" target="_blank" rel="noopener"');
@@ -26,10 +28,10 @@ await save('stock-monitor/client-admin.js',await read('cloudflare-klz/scripts/cl
 let monitor=await read('stock-monitor/tools/kwc.html');
 monitor=monitor.replaceAll('../../assets/','/assets/').replaceAll('../../','/').replaceAll('../display-defaults.css','/scripts/display-defaults.css').replaceAll('../display-defaults.js','/scripts/display-defaults.js').replaceAll('../previous-page-button.js','/scripts/previous-page-button.js');
 for(const file of ['xlsx-writer.js','monitor-page-defaults.js','desktop-excel-save.js']) monitor=monitor.replaceAll(`src="${file}`,`src="/scripts/${file}`);
-monitor=monitor.replace('data-fallback-url="/"','data-fallback-url="https://myai118.github.io/digital-tools/myweb/klz.html" data-return-always="true"').replace('<script src="/scripts/display-defaults.js','<script src="/scripts/snapshot-client.js"></script><script src="/scripts/display-defaults.js');
+monitor=monitor.replace('data-fallback-url="/"','data-fallback-url="/client-home.html" data-return-always="true"').replaceAll('https://myai118.github.io/digital-tools/myweb/klz.html','/client-home.html').replaceAll('https://myai118.github.io/digital-tools/myweb/client-home.html','/client-home.html').replace('<script src="/scripts/display-defaults.js','<script src="/scripts/snapshot-client.js"></script><script src="/scripts/display-defaults.js');
 monitor=monitor.replaceAll('The price checker runs every 5 minutes on weekdays; quote updates depend on market hours and data availability.','Prices are checked every 6 minutes on weekdays. This page checks for published data every 15 minutes; quote updates depend on market hours and data availability.');
 monitor=monitor.replace('</nav>',' <a href="/account">My account / Sign out</a></nav>');
-await save('tools-klz.html',monitor);
+await save('client-monitor.html',monitor);
 let defaults=await read('stock-monitor/display-defaults.js');
 const start=defaults.indexOf(' const scriptURL');const end=defaults.indexOf(' let loading');
 defaults=defaults.slice(0,start)+" const configURL = new URL('/api/defaults', location.origin);\n const key = 'tools/klz.html';\n"+defaults.slice(end);
@@ -40,7 +42,7 @@ const a=renderer.indexOf('async function load(){');const b=renderer.indexOf('awa
 renderer=renderer.slice(0,a)+"async function load(){const snapshot=await window.KLZSnapshot.load();const {cfg,data,dividends:dividendData}=snapshot;if(dividendData&&Array.isArray(dividendData.instruments)){const byTicker=new Map(dividendData.instruments.map(x=>[x.ticker,x]));for(const row of (data.instruments||[])){const dividend=byTicker.get(row.ticker);if(dividend)Object.assign(row,dividend);}}"+renderer.slice(b);
 renderer=renderer.replace('60*1000','15*60*1000').replace("window.addEventListener('focus',()=>refresh(false));","window.addEventListener('focus',()=>{if(window.KLZSnapshot.due())refresh(false);});");
 await save('scripts/monitor-page-defaults.js',renderer);
-await save('scripts/previous-page-button.js',"'use strict';document.getElementById('previousPageButton')?.addEventListener('click',()=>{location.href='https://myai118.github.io/digital-tools/myweb/klz.html';});\n");
+await save('scripts/previous-page-button.js',"'use strict';document.getElementById('previousPageButton')?.addEventListener('click',()=>{location.href='/client-home.html';});\n");
 for(const p of ['stock-monitor/display-defaults.css','stock-monitor/tools/xlsx-writer.js','stock-monitor/tools/desktop-excel-save.js'])await save('scripts/'+path.basename(p),await read(p));
 // Only these two images belong in the deployment, not the rest of the repository.
 for(const name of ['four-tools-overview-hires.webp','stock-etf-market.webp']){
@@ -48,4 +50,5 @@ for(const name of ['four-tools-overview-hires.webp','stock-etf-market.webp']){
  if(process.env.KLZ_SOURCE_ROOT)await copyFile(path.join(repo,'assets',name),path.join(out,'assets',name));
 }
 await copyFile('scripts/snapshot-client.js',path.join(out,'scripts/snapshot-client.js'));
-console.log('Prepared two KLZ pages and their supporting assets.');
+console.log('Prepared the Client Home and Client Monitor pages with their supporting assets.');
+
