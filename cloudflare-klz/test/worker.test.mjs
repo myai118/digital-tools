@@ -41,7 +41,7 @@ test('rate limits unsuccessful logins',async()=>{
 });
 test('protected pages/assets redirect, data denies access, and cross-origin login fails',async()=>{
  const {a}=service(),env={ACCOUNTS:{idFromName:()=>1,get:()=>({fetch:(url,opts)=>a.fetch(new Request(url,opts))})},ASSETS:{fetch:()=>{throw Error('Asset leaked');}}};const h=handler();
- for(const path of ['/myweb-klz.html','/tools-klz.html','/scripts/xlsx-writer.js']){const r=await h.fetch(new Request('https://example.com'+path),env);assert.equal(r.status,303);assert.ok(r.headers.get('location').startsWith('/login'));}
+ for(const path of ['/client-home.html','/client-monitor.html','/scripts/xlsx-writer.js','/myweb-klz.html','/tools-klz.html']){const r=await h.fetch(new Request('https://example.com'+path),env);assert.equal(r.status,303);assert.ok(r.headers.get('location').startsWith('/login'));}
  assert.equal((await h.fetch(new Request('https://example.com/api/snapshot'),env)).status,401);
  assert.equal((await h.fetch(new Request('https://example.com/login',{method:'POST',headers:{Origin:'https://evil.example'},body:'email=x'}),env)).status,403);
  const login=await h.fetch(new Request('https://example.com/login'),env);assert.equal(login.status,200);assert.equal(login.headers.get('referrer-policy'),'same-origin');assert.ok((await login.text()).includes('Client accounts sign in'));
@@ -50,8 +50,8 @@ test('valid session opens assets; secure cookie and next URL cannot redirect ext
  const {a,env:secrets}=service();const env={...secrets,ACCOUNTS:{idFromName:()=>1,get:()=>({fetch:(url,opts)=>a.fetch(new Request(url,opts))})},ASSETS:{fetch:()=>new Response('protected asset')}};await setup(a);
  const body=new URLSearchParams({email:'jjkwan118@gmail.com',password:'administrator-password-123',next:'https://evil.example'});
  const h=handler();const login=await h.fetch(new Request('https://example.com/login',{method:'POST',headers:{Origin:'https://example.com'},body}),env);
- assert.equal(login.status,303);assert.equal(login.headers.get('location'),'/myweb-klz.html');const c=login.headers.get('set-cookie');for(const flag of ['HttpOnly','Secure','SameSite=Strict','Max-Age=28800'])assert.ok(c.includes(flag));
- const response=await h.fetch(new Request('https://example.com/tools-klz.html',{headers:{Cookie:c.split(';')[0]}}),env);assert.equal(await response.text(),'protected asset');assert.equal(response.headers.get('cache-control'),'private, no-store');
+ assert.equal(login.status,303);assert.equal(login.headers.get('location'),'/client-home.html');const c=login.headers.get('set-cookie');for(const flag of ['HttpOnly','Secure','SameSite=Strict','Max-Age=28800'])assert.ok(c.includes(flag));
+ const response=await h.fetch(new Request('https://example.com/client-monitor.html',{headers:{Cookie:c.split(';')[0]}}),env);assert.equal(await response.text(),'protected asset');assert.equal(response.headers.get('cache-control'),'private, no-store');
 });
 test('snapshot exposes KLZ settings only and reports upstream failures',async()=>{
  const fetcher=async url=>Response.json(url.includes('display-defaults')?{version:1,pages:{'tools/klz.html':{visibleTickers:['A']},'tools/kwc.html':{}}}:{instruments:[]});const r=await snapshot(fetcher);assert.deepEqual(Object.keys(r.defaults.pages),['tools/klz.html']);await assert.rejects(()=>snapshot(async()=>new Response('',{status:500})));
