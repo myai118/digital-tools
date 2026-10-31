@@ -6,7 +6,7 @@ function secure(response) {
   result.headers.set('X-Content-Type-Options','nosniff');
   result.headers.set('Referrer-Policy','same-origin');
   result.headers.set('X-Frame-Options','DENY');
-  result.headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+  result.headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
   return result;
 }
 const sources = {
@@ -31,7 +31,7 @@ export async function snapshot(fetcher=fetch) {
 
 const cookieName='__Host-klz-session';
 function cookie(request){return request.headers.get('Cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(cookieName+'='))?.slice(cookieName.length+1)||'';}
-function nextPath(value){return ['/myweb-klz.html','/tools-klz.html','/accounts','/account'].includes(value)?value:'/myweb-klz.html';}
+function nextPath(value){return ['/myweb-klz.html','/tools-klz.html','/monitor','/admin','/account'].includes(value)?value:(value==='/accounts'?'/admin':'/myweb-klz.html');}
 function parseTickers(value){return [...new Set(String(value||'').split(/[\s,;]+/).map(v=>v.trim().toUpperCase()).filter(Boolean))];}
 function scopeSnapshot(snapshot,user){
  const entry=snapshot.defaults?.pages?.['tools/klz.html']||{};
@@ -53,6 +53,25 @@ async function route(request,env,getSnapshot){
  if(!env.ACCOUNTS)return html(page('Setup required','<h1>Account storage setup required</h1>'),503);
  const stub=env.ACCOUNTS.get(env.ACCOUNTS.idFromName('klz-accounts-v1'));
  async function call(body){return stub.fetch('https://accounts.internal/',{method:'POST',body:JSON.stringify(body)});}
+ if(path==='/api/admin/clients'&&request.method==='POST'){
+  if(request.headers.get('Origin')!==url.origin)return new Response('Invalid request origin',{status:403});
+  const declared=Number(request.headers.get('Content-Length')||0);if(declared>8192)return new Response('Request too large',{status:413});
+  const raw=await request.text();if(raw.length>8192)return new Response('Request too large',{status:413});
+  let body;try{body=JSON.parse(raw);}catch{return Response.json({error:'Invalid request data.'},{status:400});}
+  const token=cookie(request),session=await call({op:'session',token}),{user:actor}=await session.json();
+  if(!actor?.admin)return Response.json({error:'Administrator access required'},{status:403});
+  const allowed=['create','tickers','disable','enable','reset'];
+  if(!allowed.includes(body.op))return Response.json({error:'Unknown account action.'},{status:400});
+  const values={...body,token,csrf:body.csrf||''};
+  if(body.op==='create'||body.op==='tickers'){
+   const tickers=parseTickers(body.tickers);if(tickers.length>100)return Response.json({error:'Enter no more than 100 ticker symbols.'},{status:400});
+   let available;try{const source=await getSnapshot();available=new Set((source.cfg?.instruments||[]).filter(x=>x.enabled).map(x=>String(x.ticker).toUpperCase()));}
+   catch{return Response.json({error:'Ticker catalogue is temporarily unavailable. No changes were saved.'},{status:503});}
+   const unknown=tickers.filter(t=>!available.has(t));if(unknown.length)return Response.json({error:'These tickers are not enabled in the shared catalogue: '+unknown.join(', ')+'. No changes were saved.'},{status:400});
+   values.tickers=tickers;
+  }
+  const response=await call(values),result=await response.json();return Response.json(result,{status:response.status});
+ }
  if(request.method==='POST'){
   if(request.headers.get('Origin')!==url.origin)return new Response('Invalid request origin',{status:403});
   if(Number(request.headers.get('Content-Length')||0)>8192)return new Response('Request too large',{status:413});
@@ -103,10 +122,22 @@ async function route(request,env,getSnapshot){
   return redirect('/login?next='+encodeURIComponent(nextPath(path)));
  }
  if(path==='/')return redirect('/myweb-klz.html');
- if(path==='/account')return html(page('Your account',`<h1>Your Client accounts profile</h1><p>${htmlEscape(user.email)}</p><a href="/myweb-klz.html">Back to homepage</a>${user.admin?'<p><a href="/accounts">Manage accounts</a></p>':''}<form method="post" action="/logout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button>Sign out</button></form>`));
+ if(path==='/account')return html(page('Your account',`<h1>Your Client accounts profile</h1><p>${htmlEscape(user.email)}</p><a href="/myweb-klz.html">Back to homepage</a>${user.admin?'<p><a href="/admin">Client Admin</a></p>':''}<form method="post" action="/logout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button>Sign out</button></form>`));
+ if(path==='/monitor')return redirect('/tools-klz.html');
+ if(path==='/admin'||path==='/client-admin.html'){
+  if(!user.admin)return new Response('Administrator access required',{status:403});
+  const adminRequest=new Request(new URL('/client-admin.html',url.origin),{headers:request.headers});
+  return env.ASSETS.fetch(adminRequest);
+ }
+ if(path==='/api/admin/clients'&&request.method==='GET'){
+  if(!user.admin)return Response.json({error:'Administrator access required'},{status:403});
+  const [{users=[]},source]=await Promise.all([call({op:'list',token}).then(r=>r.json()),getSnapshot()]);
+  const tickers=(source.cfg?.instruments||[]).filter(x=>x.enabled&&x.ticker).map(x=>({ticker:x.ticker,name:x.name||x.ticker,type:x.type||'',region:x.region||''})).sort((a,b)=>a.ticker.localeCompare(b.ticker));
+  return Response.json({users,tickers,csrf:user.csrf});
+ }
  if(path==='/accounts'){
   if(!user.admin)return new Response('Administrator access required',{status:403});
-  const {users=[]}=await(await call({op:'list',token})).json();return html(accountsPage(user,users));
+  return redirect('/admin');
  }
  if(path==='/api/snapshot'){
   if(request.method==='HEAD')return new Response(null);
