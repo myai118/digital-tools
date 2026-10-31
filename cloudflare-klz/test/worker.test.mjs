@@ -56,3 +56,21 @@ test('valid session opens assets; secure cookie and next URL cannot redirect ext
 test('snapshot exposes KLZ settings only and reports upstream failures',async()=>{
  const fetcher=async url=>Response.json(url.includes('display-defaults')?{version:1,pages:{'tools/klz.html':{visibleTickers:['A']},'tools/kwc.html':{}}}:{instruments:[]});const r=await snapshot(fetcher);assert.deepEqual(Object.keys(r.defaults.pages),['tools/klz.html']);await assert.rejects(()=>snapshot(async()=>new Response('',{status:500})));
 });
+
+test('generic Client Admin API keeps each client ticker list private and admin-only',async()=>{
+ const {a,env:secrets}=service(),admin=await setup(a);
+ assert.equal((await a.handle({op:'create',...admin,email:'client@example.com',password:'client-password-123'})).status,200);
+ const env={...secrets,ACCOUNTS:{idFromName:()=>1,get:()=>({fetch:(url,opts)=>a.fetch(new Request(url,opts))})},ASSETS:{fetch:()=>new Response('asset')}};
+ const getSnapshot=async()=>({cfg:{instruments:[{ticker:'SPY',name:'S&P 500 ETF',type:'ETF',enabled:true},{ticker:'XYZ',enabled:false}]}});
+ const h=handler(getSnapshot),cookie='__Host-klz-session='+admin.token;
+ const listed=await h.fetch(new Request('https://example.com/api/admin/clients',{headers:{Cookie:cookie}}),env);
+ assert.equal(listed.status,200);const data=await listed.json();
+ assert.ok(data.users.some(u=>u.email==='client@example.com'));assert.ok(data.tickers.some(x=>x.ticker==='SPY'));assert.ok(!data.tickers.some(x=>x.ticker==='XYZ'));
+ const saved=await h.fetch(new Request('https://example.com/api/admin/clients',{method:'POST',headers:{Origin:'https://example.com',Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({op:'tickers',email:'client@example.com',tickers:['SPY'],csrf:admin.csrf})}),env);
+ assert.equal(saved.status,200);assert.deepEqual((await a.store.get('user:client@example.com')).tickers,['SPY']);
+ const rejected=await h.fetch(new Request('https://example.com/api/admin/clients',{method:'POST',headers:{Origin:'https://example.com',Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({op:'tickers',email:'client@example.com',tickers:['XYZ'],csrf:admin.csrf})}),env);
+ assert.equal(rejected.status,400);
+ const clientToken=(await(await a.handle({op:'login',email:'client@example.com',password:'client-password-123',ip:'test'})).json()).token;
+ const denied=await h.fetch(new Request('https://example.com/api/admin/clients',{headers:{Cookie:'__Host-klz-session='+clientToken}}),env);
+ assert.equal(denied.status,403);
+});
