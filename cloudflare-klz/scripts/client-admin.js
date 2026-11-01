@@ -1,6 +1,6 @@
 'use strict';
 (()=> {
- const byId=id=>document.getElementById(id),profile=byId('clientProfileSelect'),reload=byId('reloadClientProfiles'),search=byId('clientTickerSearch'),list=byId('clientTickerList'),save=byId('saveClientTickers'),toggle=byId('toggleClientAccount'),status=byId('clientTickerStatus'),profileState=byId('clientProfileState'),accountState=byId('clientAccountStatus'),createForm=byId('createClientForm'),resetForm=byId('resetClientPasswordForm');
+ const byId=id=>document.getElementById(id),profile=byId('clientProfileSelect'),reload=byId('reloadClientProfiles'),backup=byId('downloadClientAccountBackup'),search=byId('clientTickerSearch'),list=byId('clientTickerList'),save=byId('saveClientTickers'),toggle=byId('toggleClientAccount'),status=byId('clientTickerStatus'),profileState=byId('clientProfileState'),accountState=byId('clientAccountStatus'),createForm=byId('createClientForm'),resetForm=byId('resetClientPasswordForm');
  let users=[],tickers=[],csrf='',selected=new Set(),busy=false;
  function say(message,error=false){status.textContent=message;status.classList.toggle('error',error);}
  function current(){return users.find(u=>u.email===profile.value)||null;}
@@ -21,6 +21,15 @@
   const response=await fetch('/api/admin/clients',{method,credentials:'same-origin',cache:'no-store',headers:method==='GET'?{}:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
   let data={};try{data=await response.json();}catch{}if(!response.ok)throw Error(data.error||'Request failed.');return data;
  }
+ backup?.addEventListener('click',async()=>{
+  if(busy)return;backup.disabled=true;profileState.textContent='Preparing private account backup…';
+  try{
+   const response=await fetch('/api/admin/backup',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf})});
+   if(!response.ok){let data={};try{data=await response.json();}catch{}throw Error(data.error||'Could not prepare the account backup.');}
+   const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='client-account-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);profileState.textContent='Private account backup downloaded. Store it securely.';
+  }catch(error){profileState.textContent=error.message;}
+  finally{backup.disabled=false;}
+ });
  async function load(preferred,force=false){
   if(busy&&!force)return;busy=true;reload.disabled=true;profile.disabled=true;save.disabled=toggle.disabled=true;say('Loading profiles and active tickers…');
   const keep=preferred||profile.value;
