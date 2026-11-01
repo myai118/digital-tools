@@ -53,6 +53,17 @@ async function route(request,env,getSnapshot){
  if(!env.ACCOUNTS)return html(page('Setup required','<h1>Account storage setup required</h1>'),503);
  const stub=env.ACCOUNTS.get(env.ACCOUNTS.idFromName('klz-accounts-v1'));
  async function call(body){return stub.fetch('https://accounts.internal/',{method:'POST',body:JSON.stringify(body)});}
+ if(path==='/api/admin/backup'&&request.method==='POST'){
+  if(request.headers.get('Origin')!==url.origin)return new Response('Invalid request origin',{status:403});
+  if(Number(request.headers.get('Content-Length')||0)>8192)return new Response('Request too large',{status:413});
+  let body;try{body=await request.json();}catch{return Response.json({error:'Invalid request data.'},{status:400});}
+  const token=cookie(request),{user:actor}=await(await call({op:'session',token})).json();
+  if(!actor?.admin)return Response.json({error:'Administrator access required'},{status:403});
+  const result=await call({op:'backup',token,csrf:body.csrf||''});
+  if(!result.ok)return Response.json(await result.json(),{status:result.status});
+  const day=new Date().toISOString().slice(0,10);
+  return new Response(await result.text(),{headers:{'Content-Type':'application/json; charset=utf-8','Content-Disposition':`attachment; filename="client-account-backup-${day}.json"`,'Cache-Control':'private, no-store'}});
+ }
  if(path==='/api/admin/clients'&&request.method==='POST'){
   if(request.headers.get('Origin')!==url.origin)return new Response('Invalid request origin',{status:403});
   const declared=Number(request.headers.get('Content-Length')||0);if(declared>8192)return new Response('Request too large',{status:413});
