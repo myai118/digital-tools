@@ -78,6 +78,10 @@ export class Accounts {
    return json({users:[...users.values()].map(u=>({email:u.email,disabled:u.disabled,admin:u.admin,tickers:Array.isArray(u.tickers)?u.tickers:[]}))});
   }
   if(!await sameSecret(b.csrf||'',actor.csrf))return json({error:'Invalid request. Reload the page.'},403);
+  if(op==='backup'){
+   const users=await this.store.list({prefix:'user:'});
+   return json({format:'client-account-backup-v1',createdAt:new Date().toISOString(),initialised:!!await this.store.get('initialised'),users:[...users.values()]});
+  }
   const who=email(b.email),key='user:'+who;
   if(!validEmail(who))return json({error:'Enter a valid email address.'},400);
   if(op==='create'){
@@ -126,3 +130,4 @@ export function accountsPage(user,users,error=''){
  const tickerField=(tickers=[])=>`<label>Tickers for this account <small>(comma or line separated; up to 100)</small><textarea name="tickers" maxlength="3000" placeholder="VOO, QQQ, D05.SI">${htmlEscape(tickers.join(', '))}</textarea></label>`;
  return page('Manage accounts',`<h1>Client accounts</h1><p>${users.length} of 50 accounts</p><p><small>The administrator keeps the existing Client Monitor default list unless you assign a list here. New client accounts start with no tickers until you assign them.</small></p><a href="/myweb-klz.html">Back to homepage</a>${error?`<p role="alert" class="error">${htmlEscape(error)}</p>`:''}<h2>Add an account</h2><form method="post" action="/accounts">${csrf}<input type="hidden" name="op" value="create"><label>Email<input name="email" type="email" required></label><label>Initial password<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></label>${tickerField()}<button>Add account</button></form><p><small>Choose only tickers enabled in the shared price checker. Users see only their assigned list. Passwords are stored as salted hashes and cannot be viewed here.</small></p><hr><h2>Existing accounts</h2><ul>${users.map(u=>`<li><strong>${htmlEscape(u.email)}</strong> · ${u.admin?'Administrator':u.disabled?'Disabled':'Enabled'}${!u.admin?`<form method="post" action="/accounts">${csrf}<input type="hidden" name="email" value="${htmlEscape(u.email)}"><button name="op" value="${u.disabled?'enable':'disable'}">${u.disabled?'Enable':'Disable'}</button></form>`:''}<form method="post" action="/accounts">${csrf}<input type="hidden" name="email" value="${htmlEscape(u.email)}"><input type="hidden" name="op" value="tickers">${tickerField(u.tickers||[])}<button>Save ticker list</button></form><form method="post" action="/accounts">${csrf}<input type="hidden" name="email" value="${htmlEscape(u.email)}"><input type="hidden" name="op" value="reset"><label>New password<input type="password" name="password" autocomplete="new-password" minlength="12" maxlength="256" required></label><button>Reset password and end sessions</button></form></li>`).join('')}</ul>`);
 }
+
