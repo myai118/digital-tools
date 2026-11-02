@@ -15,6 +15,11 @@ on:
         required: false
         type: boolean
         default: false
+      skip_backup:
+        description: "Proceed without downloading a private account backup."
+        required: false
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ['.github/workflows/deploy-klz-cloudflare.yml']
@@ -56,11 +61,25 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           REQUESTED_STAGE: ${{ inputs.deployment_stage }}
           BACKUP_CONFIRMED: ${{ inputs.backup_confirmed }}
+          SKIP_BACKUP: ${{ inputs.skip_backup }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [ "$EVENT_NAME" = "push" ]; then stage=account-backup; else stage="$REQUESTED_STAGE"; fi
-          if [ "$stage" = "client-monitor" ] && [ "$BACKUP_CONFIRMED" != "true" ]; then
-            echo "::error::Download and save the private account backup before deploying the Client Monitor."
+          if [ "$EVENT_NAME" = "push" ]; then
+            if [ "$COMMIT_MESSAGE" = "Deploy Client Monitor without backup after user approval" ]; then
+              stage=client-monitor
+              SKIP_BACKUP=true
+            else
+              stage=account-backup
+            fi
+          else
+            stage="$REQUESTED_STAGE"
+          fi
+          if [ "$stage" = "client-monitor" ] && [ "$BACKUP_CONFIRMED" != "true" ] && [ "$SKIP_BACKUP" != "true" ]; then
+            echo "::error::Save a private account backup, or explicitly choose to skip it, before deploying the Client Monitor."
             exit 1
+          fi
+          if [ "$stage" = "client-monitor" ] && [ "$BACKUP_CONFIRMED" != "true" ]; then
+            echo "::warning::Proceeding without a private account backup, as explicitly authorized."
           fi
           echo "value=$stage" >> "$GITHUB_OUTPUT"
       - name: Preserve dashboard Access configuration
