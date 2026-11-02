@@ -1,6 +1,20 @@
-name: Deploy Client monitor to Cloudflare
+name: Deploy Client Admin and monitor Workers to Cloudflare
 on:
   workflow_dispatch:
+    inputs:
+      deployment_stage:
+        description: "Choose which Worker to deploy after the account backup."
+        required: true
+        type: choice
+        default: account-backup
+        options:
+          - account-backup
+          - client-monitor
+      backup_confirmed:
+        description: "Confirm the private account backup has been downloaded and saved securely."
+        required: false
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ['.github/workflows/deploy-klz-cloudflare.yml']
@@ -23,7 +37,7 @@ jobs:
           test -n "$CF_ACCOUNT" || { echo "::error::Add CLOUDFLARE_ACCOUNT_ID under repository Actions secrets."; exit 1; }
       - uses: actions/checkout@v4
         with:
-          ref: cloudflare/client-20261030
+          ref: main
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -36,6 +50,19 @@ jobs:
           npm install --no-audit --no-fund
           npm test
           npm run build
+      - name: Resolve deployment stage
+        id: deploy_stage
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_STAGE: ${{ inputs.deployment_stage }}
+          BACKUP_CONFIRMED: ${{ inputs.backup_confirmed }}
+        run: |
+          if [ "$EVENT_NAME" = "push" ]; then stage=account-backup; else stage="$REQUESTED_STAGE"; fi
+          if [ "$stage" = "client-monitor" ] && [ "$BACKUP_CONFIRMED" != "true" ]; then
+            echo "::error::Download and save the private account backup before deploying the Client Monitor."
+            exit 1
+          fi
+          echo "value=$stage" >> "$GITHUB_OUTPUT"
       - name: Preserve dashboard Access configuration
         working-directory: cloudflare-klz
         run: |
@@ -47,7 +74,68 @@ jobs:
           config.vars={};
           fs.writeFileSync(file,JSON.stringify(config,null,2));
           JS
+      - name: Confirm existing account namespace before updating its code
+        if: steps.deploy_stage.outputs.value == 'account-backup'
+        id: account_preflight
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request
+          base='https://api.cloudflare.com/client/v4/accounts/'+os.environ['CF_ACCOUNT']
+          req=urllib.request.Request(base+'/workers/scripts/klz-monitor/settings',headers={'Authorization':'Bearer '+os.environ['CF_TOKEN']})
+          with urllib.request.urlopen(req,timeout=30) as r:data=json.load(r)
+          if not data.get('success'):raise RuntimeError('Could not verify the existing account Worker')
+          bindings=[b for b in (data.get('result') or {}).get('bindings',[]) if b.get('name')=='ACCOUNTS']
+          if len(bindings)!=1 or not bindings[0].get('namespace_id') or bindings[0].get('class_name')!='Accounts':
+              raise RuntimeError('Existing ACCOUNTS Durable Object binding is not the expected Accounts class; no deployment made')
+          namespace=bindings[0]['namespace_id']
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('namespace_id='+namespace+'\n')
+          print('Verified existing klz-monitor Accounts namespace: '+namespace)
+          PY
+      - name: Update account service code on the existing Worker
+        if: steps.deploy_stage.outputs.value == 'account-backup'
+        working-directory: cloudflare-klz
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: 'false'
+        run: npx wrangler deploy --config wrangler.account-storage.jsonc
+      - name: Verify account namespace and backup screen
+        if: steps.deploy_stage.outputs.value == 'account-backup'
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          EXPECTED_NAMESPACE: ${{ steps.account_preflight.outputs.namespace_id }}
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error
+          base='https://api.cloudflare.com/client/v4/accounts/'+os.environ['CF_ACCOUNT']
+          req=urllib.request.Request(base+'/workers/scripts/klz-monitor/settings',headers={'Authorization':'Bearer '+os.environ['CF_TOKEN']})
+          with urllib.request.urlopen(req,timeout=30) as r:data=json.load(r)
+          bindings=[b for b in (data.get('result') or {}).get('bindings',[]) if b.get('name')=='ACCOUNTS']
+          if len(bindings)!=1 or bindings[0].get('namespace_id')!=os.environ['EXPECTED_NAMESPACE'] or bindings[0].get('class_name')!='Accounts':
+              raise RuntimeError('Account namespace changed or cannot be verified')
+          sub_req=urllib.request.Request(base+'/workers/subdomain',headers={'Authorization':'Bearer '+os.environ['CF_TOKEN']})
+          with urllib.request.urlopen(sub_req,timeout=30) as r:subdomain=json.load(r)['result']['subdomain']
+          if subdomain not in ['jjkwan118-klz','myai118-client']:raise RuntimeError('Unexpected Worker hostname')
+          url='https://klz-monitor.'+subdomain+'.workers.dev'
+          try:
+              with urllib.request.urlopen(url+'/login',timeout=20) as r:
+                  if r.status!=200 or 'Client accounts sign in' not in r.read().decode():raise RuntimeError('Account sign-in screen check failed')
+              try:urllib.request.urlopen(url+'/api/snapshot',timeout=20)
+              except urllib.error.HTTPError as e:
+                  if e.code!=401:raise
+              else:raise RuntimeError('Protected snapshot unexpectedly allowed an anonymous request')
+              print('Account Worker is live; existing Durable Object namespace is unchanged; sign-in and access protection respond.')
+          except urllib.error.HTTPError as e:
+              body=e.read().decode(errors='replace')
+              if e.code==403 and '1010' in body:print('::warning::Cloudflare blocked automated browser verification (1010); namespace preservation was verified by the API.')
+              else:raise
+          PY
       - name: Check account hostname scope
+        if: steps.deploy_stage.outputs.value == 'client-monitor'
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -68,6 +156,7 @@ jobs:
           print('Hostname scope checked: '+current)
           PY
       - name: Deploy protected Client Worker
+        if: steps.deploy_stage.outputs.value == 'client-monitor'
         working-directory: cloudflare-klz
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -75,6 +164,7 @@ jobs:
           WRANGLER_SEND_METRICS: 'false'
         run: npx wrangler deploy
       - name: Verify existing account namespace and current hostname
+        if: steps.deploy_stage.outputs.value == 'client-monitor'
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -124,6 +214,7 @@ jobs:
           print('Similar binding names: '+', '.join(b.get('name','') for b in bindings if 'SETUP' in b.get('name','').upper()))
           PY
       - name: Verify deployed login and protected data
+        if: steps.deploy_stage.outputs.value == 'client-monitor'
         run: |
           python - <<'PY'
           import os,urllib.request,urllib.error,time
