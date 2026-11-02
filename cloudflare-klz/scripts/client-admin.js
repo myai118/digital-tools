@@ -1,13 +1,28 @@
 'use strict';
 (()=> {
  const byId=id=>document.getElementById(id),profile=byId('clientProfileSelect'),reload=byId('reloadClientProfiles'),backup=byId('downloadClientAccountBackup'),search=byId('clientTickerSearch'),list=byId('clientTickerList'),save=byId('saveClientTickers'),toggle=byId('toggleClientAccount'),status=byId('clientTickerStatus'),profileState=byId('clientProfileState'),accountState=byId('clientAccountStatus'),createForm=byId('createClientForm'),resetForm=byId('resetClientPasswordForm');
+ const bulkButtons=[...document.querySelectorAll('[data-ticker-bulk]')];
  let users=[],tickers=[],csrf='',selected=new Set(),busy=false;
  function say(message,error=false){status.textContent=message;status.classList.toggle('error',error);}
  function current(){return users.find(u=>u.email===profile.value)||null;}
+ function categoryMatches(item,category){
+  const type=String(item.type||'').toLowerCase();
+  if(category==='etf')return type.includes('etf');
+  if(category==='stock')return type.includes('stock');
+  if(category==='fund')return type.includes('fund')&&!type.includes('etf');
+  return true;
+ }
+ function selectCategory(category){
+  const u=current();if(!u||busy)return;
+  if(category==='none'){selected.clear();say('Deselected all tickers. Click Save to apply.');render();return;}
+  const matches=tickers.filter(item=>categoryMatches(item,category));
+  matches.forEach(item=>selected.add(item.ticker));
+  say('Selected '+matches.length+' '+(category==='all'?'enabled tickers':category+'s')+'. Click Save to apply.');render();
+ }
  function render(){
   const u=current(),query=search.value.trim().toLowerCase();list.replaceChildren();
   if(!u){search.disabled=save.disabled=toggle.disabled=true;resetForm.hidden=true;accountState.textContent='';return;}
-  search.disabled=save.disabled=toggle.disabled=busy;resetForm.hidden=false;
+  search.disabled=save.disabled=toggle.disabled=busy;resetForm.hidden=false;bulkButtons.forEach(button=>button.disabled=busy);
   toggle.textContent=u.disabled?'Enable account':'Disable account';accountState.textContent=u.disabled?'Disabled':'Enabled';
   for(const item of tickers.filter(x=>!query||[x.ticker,x.name,x.type,x.region].some(v=>String(v||'').toLowerCase().includes(query)))){
    const label=document.createElement('label');label.className='default-ticker-option';
@@ -46,6 +61,7 @@
  }
  profile.addEventListener('change',()=>{const u=current();selected=new Set(u?.tickers||[]);say(u?'Loaded '+selected.size+' assigned tickers for '+u.email+'.':'Choose a client profile.');render();});
  search.addEventListener('input',render);reload.addEventListener('click',()=>load());
+ bulkButtons.forEach(button=>button.addEventListener('click',()=>selectCategory(button.dataset.tickerBulk)));
  save.addEventListener('click',async()=>{
   const u=current();if(!u||busy)return;busy=true;render();say('Saving ticker list…');
   try{await request('POST',{op:'tickers',email:u.email,tickers:[...selected],csrf});say('Saved '+selected.size+' tickers for '+u.email+'.');await load(u.email,true);}
