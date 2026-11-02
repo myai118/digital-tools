@@ -22,7 +22,10 @@ on:
         default: false
   push:
     branches: [main]
-    paths: ['.github/workflows/deploy-klz-cloudflare.yml']
+    paths:
+      - '.github/workflows/deploy-klz-cloudflare.yml'
+      - 'cloudflare-klz/scripts/build.mjs'
+      - 'cloudflare-klz/scripts/client-admin.js'
 permissions:
   contents: read
 concurrency:
