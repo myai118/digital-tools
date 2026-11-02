@@ -91,7 +91,7 @@ jobs:
           if len(bindings)!=1 or not bindings[0].get('namespace_id') or bindings[0].get('class_name')!='Accounts':
               raise RuntimeError('Existing ACCOUNTS Durable Object binding is not the expected Accounts class; no deployment made')
           namespace=bindings[0]['namespace_id']
-          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('namespace_id='+namespace+'\\n')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('namespace_id='+namespace+'\n')
           print('Verified existing klz-monitor Accounts namespace: '+namespace)
           PY
       - name: Update account service code on the existing Worker
