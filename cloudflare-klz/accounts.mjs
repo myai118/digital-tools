@@ -1,6 +1,6 @@
 const encoder=new TextEncoder();
 const hours8=8*60*60*1000;
-const idleSession=60*60*1000;
+const idleSession=30*60*1000;
 const hex=b=>Array.from(new Uint8Array(b),v=>v.toString(16).padStart(2,'0')).join('');
 const random=()=>hex(crypto.getRandomValues(new Uint8Array(32)));
 const digest=async s=>hex(await crypto.subtle.digest('SHA-256',encoder.encode(s)));
