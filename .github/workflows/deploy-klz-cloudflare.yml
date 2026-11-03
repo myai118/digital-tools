@@ -26,6 +26,7 @@ on:
       - '.github/workflows/deploy-klz-cloudflare.yml'
       - 'cloudflare-klz/scripts/build.mjs'
       - 'cloudflare-klz/scripts/client-admin.js'
+      - 'cloudflare-klz/worker.mjs'
 permissions:
   contents: read
 concurrency:
