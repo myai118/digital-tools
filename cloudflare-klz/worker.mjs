@@ -94,7 +94,7 @@ async function route(request,env,getSnapshot){
  if(request.method==='POST'){
   // Some mobile browsers omit Origin on same-origin HTML form POSTs.
   // Keep rejecting cross-origin requests while relying on the session CSRF token
-  // for authenticated form mutations such as logout.
+  // for authenticated form mutations such as logout and account actions.
   const origin=request.headers.get('Origin');
   if(origin && origin!==url.origin)return new Response('Invalid request origin',{status:403});
   if(Number(request.headers.get('Content-Length')||0)>8192)return new Response('Request too large',{status:413});
