@@ -1,12 +1,12 @@
 # Client Monitor account administration
 
-Cloudflare Worker hosts the protected Client Monitor and a generic Client Admin screen at /admin, with email/password login and eight-hour revocable sessions. The Client Admin combines account management with per-account ticker selection. Central GitHub ticker settings and market JSON remain upstream. Browser data polling is every 15 minutes.
+Cloudflare Worker hosts the protected Client Monitor and a generic Client Admin screen at /admin, with email/password login and 30-minute inactivity logout and browser-session-only sign-in. The Client Admin combines account management with per-account ticker selection. Central GitHub ticker settings and market JSON remain upstream. Browser data polling is every 15 minutes.
 
 ## Initial administrator
 
 In Cloudflare Workers & Pages > klz-monitor > Settings > Variables and Secrets, add a secret named SETUP_KEY containing a private random value of at least 24 characters. Deploy the secret change. Open /setup and enter that key, jjkwan118@gmail.com, and your chosen administrator password (at least 12 characters). The first account is created once only. Remove SETUP_KEY afterwards; it cannot reset or recreate an existing administrator. Keep the administrator password safely.
 
-At /admin, add users (maximum 100 including administrator), select a client profile, assign its ticker list, disable/enable accounts, or reset passwords. Disabling or resetting an account invalidates all its existing sessions. Give credentials to users privately. Passwords use unique random salts and PBKDF2 hashes, never plaintext storage. Wrong login attempts are throttled. Cookies are Secure, HttpOnly, SameSite=Strict; mutations require same-origin and session CSRF tokens. No public signup. Administrator passwords are reset by a signed-in administrator; automatic email recovery is not implemented.
+At /admin, add users (maximum 50 including administrator), select a client profile, assign its ticker list, disable/enable accounts, or reset passwords. Disabling or resetting an account invalidates all its existing sessions. Give credentials to users privately. Passwords use unique random salts and PBKDF2 hashes, never plaintext storage. Wrong login attempts are throttled. Cookies are Secure, HttpOnly, SameSite=Strict; mutations require same-origin and session CSRF tokens. No public signup. Administrator passwords are reset by a signed-in administrator; automatic email recovery is not implemented.
 
 ## Deployment
 
