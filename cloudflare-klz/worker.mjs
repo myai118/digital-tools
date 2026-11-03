@@ -49,7 +49,7 @@ async function personalisedAsset(request,env,user){
  if(!type.includes('text/html'))return response;
  const body=await response.text(),marker='<span data-account-nav>My account / Sign out</span>';
  if(!body.includes(marker))return new Response(body,response);
- const nav=`<a href="/account">${htmlEscape(user.email)}</a> / <form method="post" action="/logout" class="inline-signout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button type="submit">Sign out</button></form>`;
+ const nav=`<a href="/account">${htmlEscape(user.email)}</a> <form method="post" action="/logout" class="inline-signout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button type="submit">Sign out</button></form>`;
  return new Response(body.replaceAll(marker,nav),response);
 }
 export function handler(getSnapshot=snapshot){return {async fetch(request,env){
