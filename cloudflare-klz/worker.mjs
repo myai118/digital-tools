@@ -1,5 +1,6 @@
 import {loginPage,accountsPage,page,htmlEscape} from './accounts.mjs';
 // Account storage remains in klz-monitor; do not delete that Worker.
+// Client account limit is enforced in accounts.mjs.
 function secure(response) {
   const result = new Response(response.body, response);
   result.headers.set('Cache-Control','private, no-store');
