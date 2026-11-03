@@ -44,6 +44,14 @@ function scopeSnapshot(snapshot,user){
 const html=(body,status=200)=>new Response(body,{status,headers:{'Content-Type':'text/html; charset=utf-8'}});
 function redirect(path,extra={}){return new Response(null,{status:303,headers:{Location:path,...extra}});}
 function sessionCookie(token){return cookieName+'='+token+'; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=28800';}
+async function personalisedAsset(request,env,user){
+ const response=await env.ASSETS.fetch(request),type=response.headers.get('content-type')||'';
+ if(!type.includes('text/html'))return response;
+ const body=await response.text(),marker='<span data-account-nav>My account / Sign out</span>';
+ if(!body.includes(marker))return new Response(body,response);
+ const nav=`<a href="/account">${htmlEscape(user.email)}</a> / <form method="post" action="/logout" class="inline-signout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button type="submit">Sign out</button></form>`;
+ return new Response(body.replaceAll(marker,nav),response);
+}
 export function handler(getSnapshot=snapshot){return {async fetch(request,env){
  try{return secure(await route(request,env,getSnapshot));}
  catch{return secure(html(page('Unavailable','<h1>Temporarily unavailable</h1><p>Please try again shortly.</p>'),503));}
@@ -158,7 +166,7 @@ async function route(request,env,getSnapshot){
   catch{return Response.json({error:'Unable to retrieve latest GitHub data. Previous prices and timestamps are retained.'},{status:502});}
  }
  if(path.startsWith('/api/'))return new Response('Not found',{status:404});
- return env.ASSETS.fetch(request);
+ return personalisedAsset(request,env,user);
 }
 export default handler();
 
