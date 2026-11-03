@@ -8,7 +8,7 @@ const read = p => readFile(path.join(repo,p),'utf8');
 const save = (p,s) => writeFile(path.join(out,p),s);
 let landing = await read('myweb/klz.html');
 landing=landing.replaceAll('../assets/','/assets/').replaceAll('https://myai118.github.io/digital-tools/stock-monitor/tools/klz.html','/client-monitor.html').replaceAll('https://client-monitor.myai118-client.workers.dev/tools-klz.html','/client-monitor.html');
-landing=landing.replace('<body', '<body').replace('</main>','<p style="text-align:center;padding:18px"><a href="/account">My account / Sign out</a></p></main>');
+landing=landing.replace('<body', '<body').replace('</main>','<p style="text-align:center;padding:18px"><span data-account-nav>My account / Sign out</span></p></main>');
 await save('client-home.html',landing);
 let admin=await read('market-watch-admin.html');
 admin=admin.replace('<title>Market Watch • Admin</title>','<title>Client Admin • Market Watch</title>');
@@ -31,7 +31,7 @@ monitor=monitor.replaceAll('../../assets/','/assets/').replaceAll('../../','/').
 for(const file of ['xlsx-writer.js','monitor-page-defaults.js','desktop-excel-save.js']) monitor=monitor.replaceAll(`src="${file}`,`src="/scripts/${file}`);
 monitor=monitor.replace('data-fallback-url="/"','data-fallback-url="/client-home.html" data-return-always="true"').replaceAll('https://myai118.github.io/digital-tools/myweb/klz.html','/client-home.html').replaceAll('https://myai118.github.io/digital-tools/myweb/client-home.html','/client-home.html').replace('<script src="/scripts/display-defaults.js','<script src="/scripts/snapshot-client.js"></script><script src="/scripts/display-defaults.js');
 monitor=monitor.replaceAll('The price checker runs every 5 minutes on weekdays; quote updates depend on market hours and data availability.','Prices are checked every 6 minutes on weekdays. This page checks for published data every 15 minutes; quote updates depend on market hours and data availability.');
-monitor=monitor.replace('</nav>',' <a href="/account">My account / Sign out</a></nav>');
+monitor=monitor.replace('</nav>',' <span data-account-nav>My account / Sign out</span></nav>');
 await save('client-monitor.html',monitor);
 let defaults=await read('stock-monitor/display-defaults.js');
 const start=defaults.indexOf(' const scriptURL');const end=defaults.indexOf(' let loading');
