@@ -45,13 +45,16 @@ function scopeSnapshot(snapshot,user){
 const html=(body,status=200)=>new Response(body,{status,headers:{'Content-Type':'text/html; charset=utf-8'}});
 function redirect(path,extra={}){return new Response(null,{status:303,headers:{Location:path,...extra}});}
 function sessionCookie(token){return cookieName+'='+token+'; Path=/; HttpOnly; Secure; SameSite=Strict';}
+const IDLE_SCRIPT=`(()=>{const limit=30*60*1000;let last=Date.now(),ended=false;const touch=()=>{last=Date.now()};['click','keydown','pointerdown','pointermove','scroll','touchstart','wheel'].forEach(type=>window.addEventListener(type,touch,{passive:true}));const check=()=>{if(ended)return;const idle=Date.now()-last;if(idle>=limit){ended=true;const form=document.querySelector('form[action="/logout"]');if(form){form.submit()}else{window.location.replace('/login')}}else{window.setTimeout(check,Math.max(1000,limit-idle))}};window.setTimeout(check,limit)})()`;
+
 async function personalisedAsset(request,env,user){
  const response=await env.ASSETS.fetch(request),type=response.headers.get('content-type')||'';
  if(!type.includes('text/html'))return response;
  const body=await response.text(),marker='<span data-account-nav>My account / Sign out</span>';
  if(!body.includes(marker))return new Response(body,response);
  const nav=`<a href="/account">${htmlEscape(user.email)}</a> <form method="post" action="/logout" class="inline-signout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button type="submit">Sign out</button></form>`;
- return new Response(body.replaceAll(marker,nav),response);
+ const rendered=body.replaceAll(marker,nav),script='<script src="/session-timeout.js" defer></script>';
+ return new Response(rendered.includes(script)?rendered:(rendered.includes('</body>')?rendered.replace('</body>',script+'</body>'):rendered+script),response);
 }
 export function handler(getSnapshot=snapshot){return {async fetch(request,env){
  try{return secure(await route(request,env,getSnapshot));}
@@ -150,7 +153,8 @@ async function route(request,env,getSnapshot){
  if(path==='/')return redirect('/client-home.html');
  if(path==='/myweb-klz.html')return redirect('/client-home.html');
  if(path==='/tools-klz.html'||path==='/monitor')return redirect('/client-monitor.html');
- if(path==='/account')return html(page('Your account',`<h1>Your Client accounts profile</h1><p>${htmlEscape(user.email)}</p><a href="/client-home.html">Back to homepage</a>${user.admin?'<p><a href="/admin">Client Admin</a></p>':''}<form method="post" action="/logout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button>Sign out</button></form>`));
+ if(path==='/session-timeout.js')return new Response(IDLE_SCRIPT,{headers:{'Content-Type':'application/javascript; charset=utf-8','Cache-Control':'no-store'} });
+ if(path==='/account')return html(page('Your account',`<h1>Your Client accounts profile</h1><p>${htmlEscape(user.email)}</p><a href="/client-home.html">Back to homepage</a>${user.admin?'<p><a href="/admin">Client Admin</a></p>':''}<form method="post" action="/logout"><input type="hidden" name="csrf" value="${htmlEscape(user.csrf)}"><button>Sign out</button></form><script src="/session-timeout.js" defer></script>`));
  
  if(path==='/admin'||path==='/client-admin.html'){
   if(!user.admin)return new Response('Administrator access required',{status:403});
