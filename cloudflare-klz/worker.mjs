@@ -96,7 +96,9 @@ async function route(request,env,getSnapshot){
   // Keep rejecting cross-origin requests while relying on the session CSRF token
   // for authenticated form mutations such as logout and account actions.
   const origin=request.headers.get('Origin');
-  if(origin && origin!==url.origin)return new Response('Invalid request origin',{status:403});
+  // Logout still requires the session CSRF token, so it remains protected
+  // even when Back navigation causes Safari to send a stale or null Origin.
+  if(path!=='/logout' && origin && origin!==url.origin)return new Response('Invalid request origin',{status:403});
   if(Number(request.headers.get('Content-Length')||0)>8192)return new Response('Request too large',{status:413});
   const raw=await request.text();if(raw.length>8192)return new Response('Request too large',{status:413});
   const values=Object.fromEntries(new URLSearchParams(raw));
