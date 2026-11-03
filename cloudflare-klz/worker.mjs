@@ -43,7 +43,7 @@ function scopeSnapshot(snapshot,user){
 }
 const html=(body,status=200)=>new Response(body,{status,headers:{'Content-Type':'text/html; charset=utf-8'}});
 function redirect(path,extra={}){return new Response(null,{status:303,headers:{Location:path,...extra}});}
-function sessionCookie(token){return cookieName+'='+token+'; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=28800';}
+function sessionCookie(token){return cookieName+'='+token+'; Path=/; HttpOnly; Secure; SameSite=Strict';}
 async function personalisedAsset(request,env,user){
  const response=await env.ASSETS.fetch(request),type=response.headers.get('content-type')||'';
  if(!type.includes('text/html'))return response;
