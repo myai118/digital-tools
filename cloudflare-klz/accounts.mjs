@@ -1,5 +1,6 @@
 const encoder=new TextEncoder();
 const hours8=8*60*60*1000;
+const idleSession=60*60*1000;
 const hex=b=>Array.from(new Uint8Array(b),v=>v.toString(16).padStart(2,'0')).join('');
 const random=()=>hex(crypto.getRandomValues(new Uint8Array(32)));
 const digest=async s=>hex(await crypto.subtle.digest('SHA-256',encoder.encode(s)));
@@ -31,6 +32,9 @@ export class Accounts {
   if(row.expires<=Date.now()){await this.store.delete(key);return null;}
   const user=await this.store.get('user:'+row.email);
   if(!user||user.disabled||row.version!==user.version)return null;
+  // Refresh the idle timeout only when the authenticated session is used.
+  row.expires=Date.now()+idleSession;
+  await this.store.put(key,row);
   return {email:user.email,admin:user.admin,csrf:row.csrf,tickers:Array.isArray(user.tickers)?user.tickers:null};
  }
  async fetch(request){
@@ -66,7 +70,7 @@ export class Accounts {
    const hash=await passwordHash(b.password,user?.salt||'unknown-account-dummy-salt');
    if(!user||user.disabled||!await sameSecret(hash,user.hash))return json({error:'Email or password is incorrect.'},401);
    const token=random(),csrf=random();
-   await this.store.put('session:'+await digest(token),{email:who,expires:Date.now()+hours8,csrf,version:user.version});
+   await this.store.put('session:'+await digest(token),{email:who,expires:Date.now()+idleSession,csrf,version:user.version});
    await this.ctx.storage.setAlarm(Date.now()+hours8);
    return json({ok:true,token});
   }
