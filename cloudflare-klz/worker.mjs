@@ -92,7 +92,11 @@ async function route(request,env,getSnapshot){
   const response=await call(values),result=await response.json();return Response.json(result,{status:response.status});
  }
  if(request.method==='POST'){
-  if(request.headers.get('Origin')!==url.origin)return new Response('Invalid request origin',{status:403});
+  // Some mobile browsers omit Origin on same-origin HTML form POSTs.
+  // Keep rejecting cross-origin requests while relying on the session CSRF token
+  // for authenticated form mutations such as logout.
+  const origin=request.headers.get('Origin');
+  if(origin && origin!==url.origin)return new Response('Invalid request origin',{status:403});
   if(Number(request.headers.get('Content-Length')||0)>8192)return new Response('Request too large',{status:413});
   const raw=await request.text();if(raw.length>8192)return new Response('Request too large',{status:413});
   const values=Object.fromEntries(new URLSearchParams(raw));
