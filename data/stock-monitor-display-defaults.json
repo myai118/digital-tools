@@ -14,7 +14,6 @@
         "GQC0.MU",
         "META",
         "MSFT",
-        "NVDA",
         "O39.SI",
         "QQQ",
         "QQQM",
@@ -24,7 +23,7 @@
         "U11.SI"
       ],
       "settingsPassword": "index",
-      "savedAt": "2026-11-10T22:13:35.877Z"
+      "savedAt": "2026-11-12T22:39:01.065Z"
     },
     "tools/kwc.html": {
       "visibleTickers": [
