@@ -30,6 +30,16 @@
       <input id="userEmail" type="email" placeholder="or enter the exact login email">
       <button id="load" type="button">Load list</button>
     </div>
+    <div class="toolbar" style="margin-top:10px">
+      <label for="monitorPage">Monitor page</label>
+      <select id="monitorPage" aria-label="Monitor page">
+        <option value="index.html">index.html</option>
+        <option value="kwc.html">kwc.html</option>
+        <option value="syc.html">syc.html</option>
+        <option value="klz.html">klz.html</option>
+      </select>
+      <button id="reloadDefaults" class="secondary" type="button">Reload defaults</button>
+    </div>
   </section>
   <section class="card">
     <div class="toolbar">
@@ -85,7 +95,8 @@ async function loadUsers(){
 }
 async function loadList(){
   const email=($('userEmail').value||$('userSelect').value).trim().toLowerCase(); if(!email)return msg('Enter or select a user email.',true); currentUser=email;
-  try{const data=await json(ADMIN_TICKERS_API+'?email='+encodeURIComponent(email));chosen=new Set(data.tickers||[]);render();msg('Loaded '+chosen.size+' tickers for '+email+'.')}catch(e){msg('Could not load this user list: '+e.message,true)}
+  const page=$('monitorPage').value;
+  try{const data=await json(ADMIN_TICKERS_API+'?email='+encodeURIComponent(email)+'&page='+encodeURIComponent(page));chosen=new Set(data.tickers||[]);render();msg('Loaded '+chosen.size+' tickers for '+email+' on '+page+'.')}catch(e){msg('Could not load this user list: '+e.message,true)}
 }
 async function start(){
   try{const s=await json(ADMIN_SESSION_API);if(!s.isAdmin)throw Error('This account is not an administrator.');$('adminEmail').textContent=s.email||'Administrator';
@@ -93,10 +104,11 @@ async function start(){
   }catch(e){msg('Admin page unavailable: '+e.message+'. The Cloudflare Worker admin API is not configured yet.',true)}
 }
 $('load').onclick=loadList;$('search').oninput=render;
+$('reloadDefaults').onclick=loadList;
 document.querySelectorAll('.categoryButton').forEach(b=>b.onclick=()=>{category=b.dataset.category;render()});
 $('selectVisible').onclick=()=>{visibleRows().forEach(x=>chosen.add(x.ticker));render()};
 $('clearVisible').onclick=()=>{visibleRows().forEach(x=>chosen.delete(x.ticker));render()};
-$('save').onclick=async()=>{if(!currentUser)return msg('Load a user before saving.',true);try{await json(ADMIN_TICKERS_API,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({email:currentUser,tickers:checked()})});chosen=new Set(checked());msg('Saved '+chosen.size+' tickers for '+currentUser+'.')}catch(e){msg('Save failed: '+e.message,true)}};
+$('save').onclick=async()=>{if(!currentUser)return msg('Load a user before saving.',true);try{syncChosen();await json(ADMIN_TICKERS_API,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({email:currentUser,page:$('monitorPage').value,tickers:[...chosen]})});msg('Saved '+chosen.size+' tickers for '+currentUser+' on '+$('monitorPage').value+'.')}catch(e){msg('Save failed: '+e.message,true)}};
 start();
 </script></body></html>
 
