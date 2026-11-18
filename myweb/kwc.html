@@ -350,7 +350,7 @@ a[href]:focus-visible,.btn:focus-visible,button:focus-visible{outline:3px solid 
 <p id="kwc-admin-status" class="wrap" role="status" style="font-size:.85rem;margin-top:12px"></p>
 <dialog id="kwc-admin-password" aria-labelledby="kwc-admin-password-title" style="width:min(420px,calc(100% - 32px));border:1px solid #dce3e8;border-radius:16px;padding:24px">
  <h2 id="kwc-admin-password-title" style="margin-top:0">Admin access</h2>
- <p>Enter the password. One attempt only; cancelling also locks the admin links until you leave this page and open it again.</p>
+ <p>Enter the administrator password to continue. You can cancel and try again at any time.</p>
  <form id="kwc-admin-password-form" style="padding:0;border:0;box-shadow:none">
   <label for="kwc-admin-password-input">Password</label>
   <input id="kwc-admin-password-input" type="password" autocomplete="off" autofocus>
@@ -362,7 +362,7 @@ a[href]:focus-visible,.btn:focus-visible,button:focus-visible{outline:3px solid 
 </dialog>
 <!-- KWC ONLY: prompt on every admin click; failed/cancelled attempts lock both links.
      Reload preserves the lock; leaving and re-entering resets it. -->
-<script id="kwc-admin-password-guard">
+<script id="kwc-admin-password-gu<script id="kwc-admin-password-guard">
 (function(){
  "use strict";
  const footer=document.getElementById("kwc-admin-links");
@@ -370,48 +370,45 @@ a[href]:focus-visible,.btn:focus-visible,button:focus-visible{outline:3px solid 
  const form=document.getElementById("kwc-admin-password-form");
  const input=document.getElementById("kwc-admin-password-input");
  const status=document.getElementById("kwc-admin-status");
- const key="kwc-admin-links-locked-v1";
- let locked=false, destination="";
- function storedLock(){try{return sessionStorage.getItem(key)==="1";}catch(e){return locked;}}
- function resetVisit(event){
-  const navigation=performance.getEntriesByType("navigation")[0];
-  if((event&&event.persisted)||!navigation||navigation.type!=="reload"){
-   try{sessionStorage.removeItem(key);}catch(e){}
-   locked=false;status.textContent="";
-  }else locked=storedLock();
-  if(locked) status.textContent="Admin links are locked. Leave this page and open it again to try.";
- }
- function lock(){
-  locked=true;
-  try{sessionStorage.setItem(key,"1");}catch(e){}
-  input.value="";destination="";
-  status.textContent="Admin links are locked. Leave this page and open it again to try.";
- }
+ let destination="";
  function requestAccess(event){
   const link=event.target.closest("a[data-admin-url]");
   if(!link||!footer.contains(link))return;
   event.preventDefault();
-  if(locked||storedLock()){locked=true;status.textContent="Admin links are locked. Leave this page and open it again to try.";return;}
   if(dialog.open)return;
   destination=link.dataset.adminUrl;
   input.value="";
+  status.textContent="";
   dialog.showModal();
   input.focus();
  }
  footer.addEventListener("click",requestAccess);
- footer.addEventListener("auxclick",function(event){if(event.target.closest("a[data-admin-url]"))event.preventDefault();});
+ footer.addEventListener("auxclick",function(event){
+  if(event.target.closest("a[data-admin-url]"))event.preventDefault();
+ });
  form.addEventListener("submit",function(event){
   event.preventDefault();
-  if(locked||storedLock()){lock();dialog.close();return;}
-  if(input.value!=="kwc"){lock();dialog.close();return;}
-  const url=destination;input.value="";destination="";
+  if(input.value!=="kwc"){
+   status.textContent="Incorrect administrator password. Please try again.";
+   input.value="";
+   input.focus();
+   return;
+  }
+  const url=destination;
+  destination="";
+  input.value="";
   dialog.close();
-  window.open(url,"_blank","noopener,noreferrer");
+  window.location.assign(url);
  });
- document.getElementById("kwc-admin-cancel").addEventListener("click",function(){lock();dialog.close();});
- dialog.addEventListener("cancel",function(event){event.preventDefault();lock();dialog.close();});
- window.addEventListener("pageshow",resetVisit);
- resetVisit();
+ document.getElementById("kwc-admin-cancel").addEventListener("click",function(){
+  destination="";
+  input.value="";
+  dialog.close();
+ });
+ dialog.addEventListener("cancel",function(){
+  destination="";
+  input.value="";
+ });
 })();
 </script>
 </body>
