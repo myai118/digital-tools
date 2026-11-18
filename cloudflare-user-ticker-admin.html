@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en-SG">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin - User ticker configuration</title>
+  <style>
+    :root{font-family:Arial,sans-serif;color:#102a43;background:#f4f8fb}
+    body{margin:0}.wrap{max-width:1000px;margin:auto;padding:20px}h1{color:#073b78}
+    .card{background:#fff;border:1px solid #cbd8e6;border-radius:10px;padding:16px;margin:14px 0}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    input,select{padding:10px;border:1px solid #9fb5ca;border-radius:6px;font:inherit}
+    input[type=email]{flex:1;min-width:240px}input[type=search]{flex:1;min-width:220px}
+    button{padding:10px 14px;border:0;border-radius:6px;background:#087cf0;color:#fff;font-weight:bold;cursor:pointer}
+    button.secondary{background:#e8f1f8;color:#123b63}.status{color:#526b7c}.error{color:#a61b1b;background:#fff0f0;border:1px solid #e0a4a4;padding:10px;border-radius:6px}
+    .ticker-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;max-height:560px;overflow:auto}
+    label{display:block;padding:10px;background:#f6f9fc;border:1px solid #d6e1eb;border-radius:6px}label span{display:block;font-size:12px;color:#526b7c;margin-left:24px;margin-top:3px}
+    .count{font-weight:bold}.warning{background:#fff8e6;border:1px solid #e3bd62;padding:10px;border-radius:6px}
+  </style>
+</head>
+<body><main class="wrap">
+  <h1>Admin - configure user ticker lists</h1>
+  <p class="status">Administrator: <strong id="adminEmail">Checking.</strong></p>
+  <p class="warning">Changes apply only to the selected login user. Do not enter a password or GitHub token here.</p>
+  <div id="message" class="status" role="status"></div>
+  <section class="card">
+    <h2>Select user</h2>
+    <div class="toolbar">
+      <select id="userSelect" aria-label="Registered user"><option value="">Choose a registered user</option></select>
+      <input id="userEmail" type="email" placeholder="or enter the exact login email">
+      <button id="load" type="button">Load list</button>
+    </div>
+  </section>
+  <section class="card">
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Search ticker or name">
+      <button id="selectVisible" class="secondary" type="button">Select visible</button>
+      <button id="clearVisible" class="secondary" type="button">Clear visible</button>
+      <button id="save" type="button">Save for this user</button>
+    </div>
+    <p><span id="count" class="count">0 selected</span></p>
+    <div id="tickers" class="ticker-list"></div>
+  </section>
+</main>
+<script>
+'use strict';
+const TICKER_SOURCE='https://myai118.github.io/digital-tools/data/stock-tickers.json';
+// These admin-only endpoints must be implemented by the Cloudflare Worker.
+const ADMIN_SESSION_API='/api/admin/session';
+const ADMIN_USERS_API='/api/admin/users';
+const ADMIN_TICKERS_API='/api/admin/user-tickers';
+let rows=[], currentUser='', chosen=new Set();
+const $=id=>document.getElementById(id);
+function msg(text,error=false){$('message').textContent=text;$('message').className=error?'error':'status'}
+function checked(){return [...document.querySelectorAll('#tickers input:checked')].map(x=>x.value)}
+function count(){ $('count').textContent=checked().length+' selected' }
+function render(){
+  const q=$('search').value.trim().toLowerCase(); $('tickers').innerHTML='';
+  rows.filter(x=>(x.ticker+' '+(x.name||'')+' '+(x.market||'')).toLowerCase().includes(q)).forEach(x=>{
+    const l=document.createElement('label'), c=document.createElement('input'); c.type='checkbox'; c.value=x.ticker; c.checked=chosen.has(x.ticker); c.onchange=count;
+    l.append(c,' '+x.ticker); const s=document.createElement('span'); s.textContent=(x.name||'')+(x.market?' � '+x.market:''); l.append(s); $('tickers').append(l);
+  }); count();
+}
+async function json(url,opt){const r=await fetch(url,{credentials:'include',cache:'no-store',...opt});if(!r.ok)throw Error(url+' returned HTTP '+r.status);return r.json()}
+async function loadUsers(){
+  const result=await json(ADMIN_USERS_API); const users=Array.isArray(result)?result:(result.users||[]);
+  users.forEach(u=>{const email=typeof u==='string'?u:u.email;if(!email)return;const o=document.createElement('option');o.value=email;o.textContent=email;$('userSelect').append(o)});
+}
+async function loadList(){
+  const email=($('userEmail').value||$('userSelect').value).trim().toLowerCase(); if(!email)return msg('Enter or select a user email.',true); currentUser=email;
+  try{const data=await json(ADMIN_TICKERS_API+'?email='+encodeURIComponent(email));chosen=new Set(data.tickers||[]);render();msg('Loaded '+chosen.size+' tickers for '+email+'.')}catch(e){msg('Could not load this user list: '+e.message,true)}
+}
+async function start(){
+  try{const s=await json(ADMIN_SESSION_API);if(!s.isAdmin)throw Error('This account is not an administrator.');$('adminEmail').textContent=s.email||'Administrator';
+    const source=await json(TICKER_SOURCE);rows=Array.isArray(source)?source:(source.instruments||[]);if(!rows.length)throw Error('No ticker records returned.');await loadUsers();render();msg('Ready. Select a user to configure.');
+  }catch(e){msg('Admin page unavailable: '+e.message+'. The Cloudflare Worker admin API is not configured yet.',true)}
+}
+$('load').onclick=loadList;$('search').oninput=render;
+$('selectVisible').onclick=()=>{document.querySelectorAll('#tickers input').forEach(x=>x.checked=true);count()};
+$('clearVisible').onclick=()=>{document.querySelectorAll('#tickers input').forEach(x=>x.checked=false);count()};
+$('save').onclick=async()=>{if(!currentUser)return msg('Load a user before saving.',true);try{await json(ADMIN_TICKERS_API,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({email:currentUser,tickers:checked()})});chosen=new Set(checked());msg('Saved '+chosen.size+' tickers for '+currentUser+'.')}catch(e){msg('Save failed: '+e.message,true)}};
+start();
+</script></body></html>
+
