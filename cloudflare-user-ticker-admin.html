@@ -15,7 +15,7 @@
     button.secondary{background:#e8f1f8;color:#123b63}.status{color:#526b7c}.error{color:#a61b1b;background:#fff0f0;border:1px solid #e0a4a4;padding:10px;border-radius:6px}
     .ticker-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;max-height:560px;overflow:auto}
     label{display:block;padding:10px;background:#f6f9fc;border:1px solid #d6e1eb;border-radius:6px}label span{display:block;font-size:12px;color:#526b7c;margin-left:24px;margin-top:3px}
-    .count{font-weight:bold}.warning{background:#fff8e6;border:1px solid #e3bd62;padding:10px;border-radius:6px}
+    .count{font-weight:bold}.summary{color:#526b7c}.warning{background:#fff8e6;border:1px solid #e3bd62;padding:10px;border-radius:6px}
   </style>
 </head>
 <body><main class="wrap">
@@ -33,12 +33,20 @@
   </section>
   <section class="card">
     <div class="toolbar">
-      <input id="search" type="search" placeholder="Search ticker or name">
-      <button id="selectVisible" class="secondary" type="button">Select visible</button>
-      <button id="clearVisible" class="secondary" type="button">Clear visible</button>
+      <label for="search">Filter tickers</label>
+      <input id="search" type="search" placeholder="Ticker, name, region or type">
+    </div>
+    <div class="toolbar" style="margin-top:10px">
+      <button class="secondary categoryButton" data-category="ETF" type="button">Show all ETFs</button>
+      <button class="secondary categoryButton" data-category="Stock" type="button">Show all stocks</button>
+      <button class="secondary categoryButton" data-category="Fund" type="button">Show all funds</button>
+    </div>
+    <div class="toolbar" style="margin-top:10px">
+      <button id="selectVisible" class="secondary" type="button">Select filtered</button>
+      <button id="clearVisible" class="secondary" type="button">Clear filtered</button>
       <button id="save" type="button">Save for this user</button>
     </div>
-    <p><span id="count" class="count">0 selected</span></p>
+    <p class="summary"><span id="count" class="count">0 selected</span> � <span id="shown">0 of 0 active tickers shown</span></p>
     <div id="tickers" class="ticker-list"></div>
   </section>
 </main>
@@ -49,14 +57,23 @@ const TICKER_SOURCE='https://myai118.github.io/digital-tools/data/stock-tickers.
 const ADMIN_SESSION_API='/api/admin/session';
 const ADMIN_USERS_API='/api/admin/users';
 const ADMIN_TICKERS_API='/api/admin/user-tickers';
-let rows=[], currentUser='', chosen=new Set();
+let rows=[], currentUser='', chosen=new Set(), category='';
 const $=id=>document.getElementById(id);
 function msg(text,error=false){$('message').textContent=text;$('message').className=error?'error':'status'}
 function checked(){return [...document.querySelectorAll('#tickers input:checked')].map(x=>x.value)}
-function count(){ $('count').textContent=checked().length+' selected' }
+function syncChosen(){document.querySelectorAll('#tickers input').forEach(x=>x.checked?chosen.add(x.value):chosen.delete(x.value))}
+function count(){
+  syncChosen(); const active=rows.filter(x=>x.enabled!==false); const visible=visibleRows();
+  $('count').textContent=chosen.size+' selected'; $('shown').textContent=visible.length+' of '+active.length+' active tickers shown';
+}
+function typeOf(x){return String(x.type||x.category||'').toLowerCase()}
+function visibleRows(){
+  const q=$('search').value.trim().toLowerCase();
+  return rows.filter(x=>x.enabled!==false && (!category || typeOf(x)===category.toLowerCase()) && (x.ticker+' '+(x.name||'')+' '+(x.market||'')+' '+(x.region||'')+' '+(x.type||x.category||'')).toLowerCase().includes(q));
+}
 function render(){
-  const q=$('search').value.trim().toLowerCase(); $('tickers').innerHTML='';
-  rows.filter(x=>(x.ticker+' '+(x.name||'')+' '+(x.market||'')).toLowerCase().includes(q)).forEach(x=>{
+  $('tickers').innerHTML='';
+  visibleRows().forEach(x=>{
     const l=document.createElement('label'), c=document.createElement('input'); c.type='checkbox'; c.value=x.ticker; c.checked=chosen.has(x.ticker); c.onchange=count;
     l.append(c,' '+x.ticker); const s=document.createElement('span'); s.textContent=(x.name||'')+(x.market?' � '+x.market:''); l.append(s); $('tickers').append(l);
   }); count();
@@ -76,8 +93,9 @@ async function start(){
   }catch(e){msg('Admin page unavailable: '+e.message+'. The Cloudflare Worker admin API is not configured yet.',true)}
 }
 $('load').onclick=loadList;$('search').oninput=render;
-$('selectVisible').onclick=()=>{document.querySelectorAll('#tickers input').forEach(x=>x.checked=true);count()};
-$('clearVisible').onclick=()=>{document.querySelectorAll('#tickers input').forEach(x=>x.checked=false);count()};
+document.querySelectorAll('.categoryButton').forEach(b=>b.onclick=()=>{category=b.dataset.category;render()});
+$('selectVisible').onclick=()=>{visibleRows().forEach(x=>chosen.add(x.ticker));render()};
+$('clearVisible').onclick=()=>{visibleRows().forEach(x=>chosen.delete(x.ticker));render()};
 $('save').onclick=async()=>{if(!currentUser)return msg('Load a user before saving.',true);try{await json(ADMIN_TICKERS_API,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({email:currentUser,tickers:checked()})});chosen=new Set(checked());msg('Saved '+chosen.size+' tickers for '+currentUser+'.')}catch(e){msg('Save failed: '+e.message,true)}};
 start();
 </script></body></html>
