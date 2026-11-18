@@ -6,7 +6,7 @@ window.ECGitHub=(()=>{
  const headers=(extra={})=>({...extra,'X-GitHub-Api-Version':'2022-11-28',...(credential?{Authorization:'Bearer '+credential}:{})});
  async function request(path,options={}){
   const r=await fetch(base+path,{...options,cache:'no-store',headers:headers({Accept:'application/vnd.github+json',...(options.headers||{})})});
-  if(!r.ok){let detail;try{detail=(await r.json()).message;}catch(e){}throw Error('GitHub '+r.status+': '+(detail||'Request failed.')+(r.status===401?' Connect with a valid token.':r.status===403?' Check token permissions or API rate limits.':''));}
+  if(!r.ok){let detail;try{detail=(await r.json()).message;}catch(e){}const suffix=r.status===401?' Use a valid GitHub token.':r.status===403?' This token cannot write myai118/digital-tools. Use a token owned by myai118 with fine-grained Contents: Read and write for digital-tools, or a classic token with the repo scope. A public-access token cannot save.':'';throw Error('GitHub '+r.status+': '+(detail||'Request failed.')+suffix);}
   return r.status===204?null:r.json();
  }
  const decode=s=>new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g,'')),c=>c.charCodeAt(0)));
