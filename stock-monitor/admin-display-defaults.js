@@ -17,14 +17,22 @@
   }
   count.textContent=(selected[activePage]||[]).length+' selected · '+shown.length+' of '+instruments.length+' active tickers shown';
  }
+ async function readStkrefTickers(){
+  try{
+   const response=await fetch('https://api.github.com/repos/myai118/EverydayCompass/contents/stock-tickers.json?ts='+Date.now(),{cache:'no-store'});
+   if(!response.ok)return {instruments:[]};
+   const file=await response.json(),bytes=Uint8Array.from(atob((file.content||'').replace(/\s/g,'')),c=>c.charCodeAt(0));
+   return JSON.parse(new TextDecoder().decode(bytes));
+  }catch{return {instruments:[]};}
+ }
  async function load(){
   if(busy)return;busy=true;save.disabled=reload.disabled=page.disabled=search.disabled=selectFiltered.disabled=clearFiltered.disabled=true;for(const button of Object.values(categoryButtons))button.disabled=true;say('Loading monitor defaults and active tickers…');
   try{
-   const [defaults,tickerConfig]=await Promise.all([ECGitHub.file('data/stock-monitor-display-defaults.json'),ECGitHub.file('data/stock-tickers.json')]);
+   const [defaults,tickerConfig,stkrefConfig]=await Promise.all([ECGitHub.file('data/stock-monitor-display-defaults.json'),ECGitHub.file('data/stock-tickers.json'),readStkrefTickers()]);
    if(defaults.data.version!==1||!defaults.data.pages||typeof defaults.data.pages!=='object')throw Error('Invalid display defaults file.');
    pages=defaults.data.pages;original={};selected={};
    for(const [key,value] of Object.entries(pages)){if(!Array.isArray(value.visibleTickers))throw Error('Invalid ticker list for '+key+'.');original[key]=[...value.visibleTickers].sort();selected[key]=[...value.visibleTickers].sort();}
-   instruments=(tickerConfig.data.instruments||[]).filter(x=>x.enabled&&typeof x.ticker==='string').map(x=>({ticker:x.ticker,name:x.name||x.ticker,region:x.region||'',type:x.type||''})).sort((a,b)=>a.ticker.localeCompare(b.ticker));
+   const merged=new Map((tickerConfig.data.instruments||[]).map(x=>[x.ticker,x]));for(const x of (stkrefConfig.instruments||[]))if(!merged.has(x.ticker))merged.set(x.ticker,x);instruments=[...merged.values()].filter(x=>x.enabled&&typeof x.ticker==='string').map(x=>({ticker:x.ticker,name:x.name||x.ticker,region:x.region||'',type:x.type||''})).sort((a,b)=>a.ticker.localeCompare(b.ticker));
    const keep=page.value;page.replaceChildren();for(const key of Object.keys(pages).sort()){const option=document.createElement('option');option.value=key;option.textContent=key;page.append(option);}page.value=Object.hasOwn(pages,keep)?keep:(page.options[0]?.value||'');
    activePage=page.value;render();save.disabled=!page.options.length;
    say('Choose the tickers visitors should see on each monitor page. Connect the myai118/digital-tools token under Owner access before saving (Contents: Read and write).');
