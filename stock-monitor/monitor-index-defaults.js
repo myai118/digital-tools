@@ -138,7 +138,26 @@ function render(cfg,data){
  clearInterval(interval);interval=setInterval(()=>refresh(false),60*1000);
  return active.map(x=>prices.get(x.ticker)||{});
 }
-async function load(){const [cfg,data,dividendData,syncData]=await Promise.all([get('../data/stock-tickers.json'),get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/market-data.json'),get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/dividend-data.json').catch(()=>null),get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/refresh-sync-status.json').catch(()=>null)]);latestSync=syncData;if(dividendData&&Array.isArray(dividendData.instruments)){const byTicker=new Map(dividendData.instruments.map(x=>[x.ticker,x]));for(const row of (data.instruments||[])){const dividend=byTicker.get(row.ticker);if(dividend)Object.assign(row,dividend);}}await StockMonitorDisplay.initialise(cfg,hiddenTickers,rerender);return render(cfg,data);}
+async function load(){
+ const [localCfg,sourceCfg,data,dividendData,syncData]=await Promise.all([
+  get('../data/stock-tickers.json'),
+  get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/stock-tickers.json').catch(()=>({instruments:[]})),
+  get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/market-data.json'),
+  get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/dividend-data.json').catch(()=>null),
+  get('https://raw.githubusercontent.com/myai118/EverydayCompass/main/refresh-sync-status.json').catch(()=>null)
+ ]);
+ const merged=new Map((localCfg.instruments||[]).map(x=>[x.ticker,x]));
+ for(const source of (sourceCfg.instruments||[])){
+  const existing=merged.get(source.ticker);
+  if(!existing)merged.set(source.ticker,{...source,show:source.show!==false});
+  else merged.set(source.ticker,{...source,...existing,name:existing.name||source.name,region:existing.region||source.region,type:existing.type||source.type});
+ }
+ const cfg={...localCfg,instruments:[...merged.values()]};
+ latestSync=syncData;
+ if(dividendData&&Array.isArray(dividendData.instruments)){const byTicker=new Map(dividendData.instruments.map(x=>[x.ticker,x]));for(const row of (data.instruments||[])){const dividend=byTicker.get(row.ticker);if(dividend)Object.assign(row,dividend);}}
+ await StockMonitorDisplay.initialise(cfg,hiddenTickers,rerender);
+ return render(cfg,data);
+}
 async function refresh(){if(running)return;running=true;try{const rows=await load();const failed=rows.filter(x=>x.refresh_error).length;$('status').textContent=failed?failed+' ticker(s) have a source data warning; their saved values remain displayed. Price checker last completed: '+$('reference-time').textContent+'.':'Latest shared data loaded. Price checker last completed: '+$('reference-time').textContent+'.';}catch(e){$('status').textContent=e.message;}finally{running=false;}}
 for(const head of document.querySelectorAll('thead')){
  const type=head.closest('#etfSection')?'ETF':head.closest('#fundSection')?'Fund':'Stock',tr=document.createElement('tr');
